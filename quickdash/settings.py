@@ -243,6 +243,8 @@ FEE_PER_KM = 5.00         # (Aapki per-km fee)
 MIN_DELIVERY_FEE = 20.00  # (Minimum fee)
 MAX_DELIVERY_FEE = 100.00 # (Maximum fee)
 TAX_RATE = 0.05           # (e.g., 5% GST)
+ORDER_CANCELLATION_WINDOW = 300
+RIDER_BASE_DELIVERY_FEE = 30.00
 
 """
 

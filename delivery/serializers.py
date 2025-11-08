@@ -145,3 +145,17 @@ class StaffOrderStatusUpdateSerializer(serializers.Serializer):
         ],
         required=True
     )
+
+class RiderEarningSerializer(serializers.ModelSerializer):
+    """
+    Rider ko uski kamai ki details dikhane ke liye.
+    """
+    class Meta:
+        model = RiderEarning
+        fields = [
+            'order_id_str',
+            'base_fee',
+            'tip',
+            'total_earning',
+            'created_at'
+        ]

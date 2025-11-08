@@ -16,13 +16,90 @@ from .serializers import (
     RiderLocationUpdateSerializer,
     RiderDeliverySerializer,
     DeliveryUpdateSerializer,
-    StaffOrderStatusUpdateSerializer
+    StaffOrderStatusUpdateSerializer,
+    RiderEarningSerializer
 )
+from .models import RiderProfile, Delivery, RiderEarning # <-- NAYA IMPORT
+from django.db.models import Sum, Count # <-- NAYA IMPORT
+from django.db.models.functions import TruncDay # <-- NAYA IMPORT
+from datetime import timedelta # <-- NAYA IMPORT
 from django.contrib.gis.measure import D  # <-- YEH NAYI LINE ADD KAREIN
 from rest_framework import generics, status
 from orders.models import Order
 from orders.serializers import OrderDetailSerializer
 from accounts.permissions import IsRider, IsStoreStaff
+
+
+
+
+
+
+class RiderEarningsView(generics.GenericAPIView):
+    """
+    API: GET /api/delivery/earnings/
+    Rider ki total kamai aur daily breakdown dikhata hai.
+    Query Params:
+    - ?filter=today (Sirf aaj ki kamai)
+    - ?filter=weekly (Pichle 7 din ki kamai)
+    - (default) Poori list (paginated)
+    """
+    permission_classes = [IsAuthenticated, IsRider]
+    serializer_class = RiderEarningSerializer
+
+    def get(self, request, *args, **kwargs):
+        rider_profile = request.user.rider_profile
+        queryset = RiderEarning.objects.filter(rider=rider_profile)
+        
+        filter_param = request.query_params.get('filter')
+        today = timezone.now().date()
+        
+        if filter_param == 'today':
+            queryset = queryset.filter(created_at__date=today)
+        elif filter_param == 'weekly':
+            week_ago = today - timedelta(days=7)
+            queryset = queryset.filter(created_at__date__gte=week_ago)
+        
+        # Kul kamai calculate karein
+        total_stats = queryset.aggregate(
+            total_deliveries=Count('id'),
+            total_earnings=Sum('total_earning'),
+            total_tips=Sum('tip')
+        )
+        
+        # Daily breakdown (filtered queryset par)
+        daily_summary = queryset.annotate(
+            day=TruncDay('created_at')
+        ).values('day').annotate(
+            deliveries=Count('id'),
+            earnings=Sum('total_earning')
+        ).order_by('-day')
+        
+        # Individual earning list (paginated)
+        page = self.paginate_queryset(queryset.order_by('-created_at'))
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            # Paginated response se data nikaalein (next, previous, count, results)
+            paginated_data = serializer.data
+            
+            response_data = {
+                'total_stats': total_stats,
+                'daily_summary': list(daily_summary),
+                'recent_earnings_list': paginated_data # 'results' key paginated response mein hoti hai
+            }
+            # get_paginated_response poora response object return karta hai
+            return self.get_paginated_response(response_data)
+
+        # Agar pagination nahi hai (ya default settings mein nahi hai)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            'total_stats': total_stats,
+            'daily_summary': list(daily_summary),
+            'recent_earnings_list': serializer.data
+        })
+# --- END NAYA VIEW ---
+
+
+
 
 class RiderProfileView(generics.RetrieveUpdateAPIView):
     """

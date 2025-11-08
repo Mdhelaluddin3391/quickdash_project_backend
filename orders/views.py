@@ -474,13 +474,19 @@ class OrderCancelView(generics.GenericAPIView):
         
         if order.status == Order.OrderStatus.CONFIRMED:
             confirmation_time = order.updated_at 
-            if (timezone.now() - confirmation_time).total_seconds() > 300: # 5 minutes
+
+
+            if (timezone.now() - confirmation_time).total_seconds() > settings.ORDER_CANCELLATION_WINDOW: # 5 minutes
                 return Response(
-                    {"error": "Confirmed orders can only be cancelled within 5 minutes."},
+                    {"error": f"Confirmed orders can only be cancelled within {settings.ORDER_CANCELLATION_WINDOW // 60} minutes."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
         
         original_status = order.status
+        
+
+        order.status = Order.OrderStatus.CANCELLED
+        order.save(update_fields=['status', 'payment_status']) # Status yahaan save karein
         
         # --- NAYA REFUND LOGIC ---
         payment_to_refund = None

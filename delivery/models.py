@@ -1,9 +1,12 @@
+# delivery/models.py (Updated with RiderEarning logic)
+
 from django.db import models
 from django.conf import settings
 from django.contrib.gis.db import models as gis_models
 from store.models import TimestampedModel
 from orders.models import Order 
 from accounts.tasks import send_fcm_push_notification_task
+from decimal import Decimal # <-- Import pehle se hai, acchi baat hai
 
 class RiderProfile(TimestampedModel):
     """
@@ -112,12 +115,13 @@ class Delivery(TimestampedModel):
 
     def save(self, *args, **kwargs):
         """
+        --- UPDATED SAVE METHOD ---
         Custom save logic.
-        Jab delivery ka status update hota hai, toh main 'Order' 
-        ka status bhi update karein aur PUSH NOTIFICATION bhejein.
+        Ab yeh Order Status, Rider Status, Push Notification, aur Rider Earning
+        sab manage karta hai.
         """
         
-        # Purana status check karne ke liye (agar naya object nahi hai)
+        # 1. Purana status check karein
         old_status = None
         if self.pk:
             try:
@@ -125,13 +129,13 @@ class Delivery(TimestampedModel):
             except Delivery.DoesNotExist:
                 pass # Naya object hai
         
-        # Order status update logic
+        # 2. Order status update logic
         if self.status == self.DeliveryStatus.PICKED_UP:
             self.order.status = Order.OrderStatus.OUT_FOR_DELIVERY
         elif self.status == self.DeliveryStatus.DELIVERED:
             self.order.status = Order.OrderStatus.DELIVERED
         
-        # Rider status update logic
+        # 3. Rider status update logic
         if self.rider:
             if self.status in [self.DeliveryStatus.ACCEPTED, self.DeliveryStatus.AT_STORE, self.DeliveryStatus.PICKED_UP]:
                 self.rider.on_delivery = True
@@ -139,12 +143,14 @@ class Delivery(TimestampedModel):
                 self.rider.on_delivery = False
             self.rider.save()
         
-        # Order ko save karein (taaki naya status DB mein jaaye)
+        # 4. Order ko save karein (taaki naya status DB mein jaaye)
         self.order.save()
         
-        # --- PUSH NOTIFICATION TRIGGER LOGIC ---
-        # Sirf tabhi notification bhejein jab status badla ho
-        if old_status != self.status and self.order.user:
+        # 5. Check karein ki status *sach mein* badla hai ya nahi
+        status_changed = (old_status != self.status)
+        
+        # --- 6. PUSH NOTIFICATION TRIGGER LOGIC (Agar status badla hai) ---
+        if status_changed and self.order.user:
             user_id = self.order.user.id
             order_id = self.order.order_id
             
@@ -170,11 +176,88 @@ class Delivery(TimestampedModel):
                 except Exception as e:
                     # Celery down hone par bhi server crash na ho
                     print(f"Error triggering push notification task: {e}")
-        # --- END NOTIFICATION LOGIC ---
+        
+        
+        # --- 7. NAYA RIDER EARNING LOGIC (Agar status badla hai) ---
+        # Jab order DELIVERED mark ho, tab earning record karein
+        if status_changed and self.status == self.DeliveryStatus.DELIVERED and self.rider:
+            try:
+                # Base fee settings se lein
+                base_fee = Decimal(getattr(settings, 'RIDER_BASE_DELIVERY_FEE', '0.00'))
+                # Tip order se lein
+                tip = self.order.rider_tip
+                
+                # Naya Earning record banayein
+                RiderEarning.objects.create(
+                    rider=self.rider,
+                    delivery=self,
+                    order_id_str=self.order.order_id,
+                    base_fee=base_fee,
+                    tip=tip,
+                    total_earning=base_fee + tip
+                )
+                print(f"RiderEarning record created for Rider {self.rider.id} for Order {self.order.order_id}")
+                
+            except Exception as e:
+                # Agar yeh fail bhi hota hai, toh order delivery ko na rokein
+                print(f"ERROR: Failed to create RiderEarning record: {e}")
+        # --- END NAYA LOGIC ---
 
+        # 8. Ab main Delivery object ko save karein (BUG FIX)
         super(Delivery, self).save(*args, **kwargs)
 
     class Meta:
         verbose_name = "Delivery"
         verbose_name_plural = "Deliveries"
         ordering = ['-created_at']
+
+
+# --- NAYA MODEL: RiderEarning ---
+class RiderEarning(TimestampedModel):
+    """
+    Har successful delivery ke liye rider ki kamai track karta hai.
+    """
+    rider = models.ForeignKey(
+        RiderProfile,
+        on_delete=models.SET_NULL, # Rider delete ho jaaye toh bhi record rahe
+        null=True,
+        related_name='earnings'
+    )
+    delivery = models.OneToOneField(
+        Delivery,
+        on_delete=models.SET_NULL, # Delivery delete ho jaaye toh bhi record rahe
+        null=True,
+        related_name='earning_record'
+    )
+    order_id_str = models.CharField(
+        max_length=15, 
+        db_index=True,
+        help_text="Order ID ka snapshot (search ke liye)"
+    )
+    
+    base_fee = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2,
+        help_text="Is delivery ke liye fix kamai"
+    )
+    tip = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        default=0.00,
+        help_text="Customer se mili tip"
+    )
+    total_earning = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2,
+        help_text="Kul kamai (Base Fee + Tip)"
+    )
+
+    class Meta:
+        verbose_name = "Rider Earning"
+        verbose_name_plural = "Rider Earnings"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        rider_id = self.rider.id if self.rider else "N/A"
+        return f"Earning {self.total_earning} for Rider {rider_id} (Order {self.order_id_str})"
+# --- END NAYA MODEL ---
