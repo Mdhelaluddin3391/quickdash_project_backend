@@ -1,0 +1,157 @@
+from rest_framework import generics, status
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from django.shortcuts import get_object_or_404
+from django.db import transaction
+
+from .models import Cart, CartItem
+from inventory.models import StoreInventory
+from .serializers import (
+    CartSerializer, 
+    CartItemAddSerializer, 
+    CartItemUpdateSerializer
+)
+from accounts.permissions import IsCustomer 
+
+class CartDetailView(generics.RetrieveAPIView):
+    """
+    (Is view mein koi badlaav nahi hai)
+    """
+    permission_classes = [IsAuthenticated, IsCustomer]
+    serializer_class = CartSerializer
+
+    def get_object(self):
+        cart, created = Cart.objects.get_or_create(user=self.request.user)
+        return cart
+
+
+class CartItemAddView(generics.GenericAPIView):
+    """
+    API endpoint: POST /api/cart/add/
+    Cart mein naya item add karta hai, ya maujooda item ki quantity badhaata hai.
+    """
+    permission_classes = [IsAuthenticated, IsCustomer]
+    serializer_class = CartItemAddSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        inventory_item_id = serializer.validated_data['inventory_item_id']
+        quantity_to_add = serializer.validated_data['quantity']
+        
+    
+        inventory_item = StoreInventory.objects.get(id=inventory_item_id)
+        cart = Cart.objects.get(user=request.user)
+        
+        cart_store = cart.store
+        if cart_store and cart_store != inventory_item.store:
+            return Response(
+                {"error": f"Aap sirf '{cart_store.name}' store se hi items add kar sakte hain. "
+                          "Naye store se order karne ke liye pehle cart khaali karein."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+
+        with transaction.atomic():
+            try:
+                locked_inventory_item = StoreInventory.objects.select_for_update().get(id=inventory_item_id)
+            except StoreInventory.DoesNotExist:
+                 return Response({"error": "Item not found."}, status=status.HTTP_404_NOT_FOUND)
+
+            cart_item, created = CartItem.objects.get_or_create(
+                cart=cart,
+                inventory_item=locked_inventory_item, 
+                defaults={'quantity': 0}
+            )
+            
+            new_quantity = cart_item.quantity + quantity_to_add
+            
+            if locked_inventory_item.stock_quantity < new_quantity:
+                
+                if created:
+                    cart_item.delete()
+                
+                return Response(
+                    {"error": f"Not enough stock for {locked_inventory_item.variant.product.name}. "
+                              f"Only {locked_inventory_item.stock_quantity} available."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            cart_item.quantity = new_quantity
+            cart_item.save()
+
+        cart_serializer = CartSerializer(cart, context={'request': request})
+        return Response(cart_serializer.data, status=status.HTTP_200_OK)
+
+
+class CartItemUpdateView(generics.GenericAPIView):
+    """
+    API endpoint: PATCH /api/cart/item/<int:pk>/update/
+    (Ismein bhi Race Condition Fix add kiya gaya hai)
+    """
+    permission_classes = [IsAuthenticated, IsCustomer]
+    serializer_class = CartItemUpdateSerializer
+
+    def patch(self, request, *args, **kwargs):
+        cart_item_id = self.kwargs.get('pk')
+        
+        try:
+            cart_item = CartItem.objects.get(
+                id=cart_item_id, 
+                cart__user=request.user
+            )
+        except CartItem.DoesNotExist:
+            return Response({"error": "Cart item not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        new_quantity = serializer.validated_data['quantity']
+        
+        if new_quantity == 0:
+            cart_item.delete()
+            return Response(
+                {"success": "Item removed from cart."},
+                status=status.HTTP_200_OK
+            )
+
+   
+        with transaction.atomic():
+            try:
+                locked_inventory_item = StoreInventory.objects.select_for_update().get(
+                    id=cart_item.inventory_item.id
+                )
+            except StoreInventory.DoesNotExist:
+                return Response({"error": "Item not found."}, status=status.HTTP_404_NOT_FOUND)
+
+            if locked_inventory_item.stock_quantity < new_quantity:
+                return Response(
+                    {"error": f"Not enough stock. Only {locked_inventory_item.stock_quantity} available."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            cart_item.quantity = new_quantity
+            cart_item.save()
+  
+        cart = cart_item.cart
+        cart_serializer = CartSerializer(cart, context={'request': request})
+        return Response(cart_serializer.data, status=status.HTTP_200_OK)
+
+
+class CartItemRemoveView(generics.DestroyAPIView):
+    """
+    (Is view mein koi badlaav nahi hai)
+    """
+    permission_classes = [IsAuthenticated, IsCustomer]
+
+    def get_queryset(self):
+        return CartItem.objects.filter(cart__user=self.request.user)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        
+        cart = Cart.objects.get(user=request.user)
+        cart_serializer = CartSerializer(cart, context={'request': request})
+        return Response(cart_serializer.data, status=status.HTTP_200_OK)

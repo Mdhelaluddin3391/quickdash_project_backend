@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.pdb
+*.egg
+*.egg-info/
+.eggs/
+
+# Django stuff
+*.log
+db.sqlite3
+media/
+staticfiles/
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# VSCode / IDE settings
+.vscode/
+.idea/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# --- YEH SABSE ZAROORI HAI ---
+# Secret files
+.env
+serviceAccountKey.json
