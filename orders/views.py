@@ -1,4 +1,4 @@
-# orders/views.py (Feature 4: Rider Tip ke saath fully updated)
+# orders/views.py (Fully Updated and Cleaned)
 
 from django.db import transaction
 from django.db.models import F
@@ -23,10 +23,10 @@ from cart.models import Cart
 from inventory.models import StoreInventory
 from delivery.models import Delivery 
 import razorpay
-import json         # <-- NAYA IMPORT
-import hmac         # <-- NAYA IMPORT
-import hashlib      # <-- NAYA IMPORT
-from rest_framework.views import APIView # <-- NAYA IMPORT
+import json         
+import hmac         
+import hashlib      
+from rest_framework.views import APIView 
 
 # Model Imports
 from .models import Order, OrderItem, Payment, Address, Coupon
@@ -450,7 +450,7 @@ class OrderDetailView(generics.RetrieveAPIView):
 class OrderCancelView(generics.GenericAPIView):
     """
     API: POST /api/orders/<order_id>/cancel/
-    (Aapka code - Ismein koi badlaav nahi hai)
+    (Cleaned up version - duplicate code removed)
     """
     permission_classes = [IsAuthenticated, IsCustomer]
     serializer_class = OrderDetailSerializer
@@ -466,6 +466,7 @@ class OrderCancelView(generics.GenericAPIView):
         except Order.DoesNotExist:
             return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        # Logic bilkul sahi hai: PREPARING, OUT_FOR_DELIVERY, etc. ko cancel nahi hone dega
         if order.status not in [Order.OrderStatus.PENDING, Order.OrderStatus.CONFIRMED]:
             return Response(
                 {"error": f"Order in status '{order.status}' cannot be cancelled."},
@@ -475,18 +476,13 @@ class OrderCancelView(generics.GenericAPIView):
         if order.status == Order.OrderStatus.CONFIRMED:
             confirmation_time = order.updated_at 
 
-
-            if (timezone.now() - confirmation_time).total_seconds() > settings.ORDER_CANCELLATION_WINDOW: # 5 minutes
+            if (timezone.now() - confirmation_time).total_seconds() > settings.ORDER_CANCELLATION_WINDOW: 
                 return Response(
                     {"error": f"Confirmed orders can only be cancelled within {settings.ORDER_CANCELLATION_WINDOW // 60} minutes."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
         
         original_status = order.status
-        
-
-        order.status = Order.OrderStatus.CANCELLED
-        order.save(update_fields=['status', 'payment_status']) # Status yahaan save karein
         
         # --- NAYA REFUND LOGIC ---
         payment_to_refund = None
@@ -508,9 +504,10 @@ class OrderCancelView(generics.GenericAPIView):
         
         # --- END NAYA LOGIC ---
 
-        # Order ko CANCELLED set karein
+        # Order ko CANCELLED set karein (Duplicate code yahaan se hata diya gaya hai)
         order.status = Order.OrderStatus.CANCELLED
-        order.save(update_fields=['status', 'payment_status']) # Status yahaan save karein
+        # payment_status bhi yahaan update ho raha hai (agar non-razorpay hai)
+        order.save(update_fields=['status', 'payment_status']) 
 
         # Delivery ko cancel karein (existing logic)
         try:

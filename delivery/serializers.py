@@ -5,6 +5,11 @@ from orders.models import Order
 from accounts.serializers import AddressSerializer
 from store.serializers import StoreSerializer
 from django.contrib.gis.measure import Distance
+# delivery/serializers.py
+
+from .models import RiderProfile, Delivery, RiderEarning # <-- 'RiderEarning' yahaan add karein
+
+
 
 
 class RiderProfileUpdateSerializer(serializers.ModelSerializer):
