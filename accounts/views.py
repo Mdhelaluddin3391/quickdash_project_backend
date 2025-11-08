@@ -167,13 +167,33 @@ class AddressDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class DeleteAccountView(generics.GenericAPIView):
+    """
+    User ko "soft-delete" karta hai (account deactivate karta hai).
+    User ka data (orders, etc.) database mein rehta hai.
+    """
     permission_classes = [permissions.IsAuthenticated]
 
     def delete(self, request, *args, **kwargs):
         user = request.user
-        user.delete()
-        return Response({"success": "Account deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        
+        # User ko delete karne ke bajaaye deactivate karein
+        user.is_active = False
+        
+        # Optional: User ka FCM token clear kar dein
+        user.fcm_token = None 
+        
+        user.save(update_fields=['is_active', 'fcm_token'])
+        
+        # Note: Humein user ko logout bhi karna chahiye.
+        # SimpleJWT token ko server se invalidate karna mushkil hai,
+        # isliye frontend (app) ko response milte hi token delete kar dena chahiye.
+        
+        return Response(
+            {"success": "Aapka account successfully deactivate kar diya gaya hai."}, 
+            status=status.HTTP_204_NO_CONTENT
+        )
 
+        
 class UpdateFCMTokenView(generics.GenericAPIView):
     """
     API: POST /api/accounts/update-fcm-token/

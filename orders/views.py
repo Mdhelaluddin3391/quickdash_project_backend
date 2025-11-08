@@ -15,13 +15,22 @@ from django.utils import timezone
 from django.conf import settings
 from django.contrib.gis.measure import Distance 
 import razorpay 
-
+from django.conf import settings
+import razorpay
 # Model Imports
 from .models import Order, OrderItem, Payment, Address, Coupon
 from cart.models import Cart
 from inventory.models import StoreInventory
 from delivery.models import Delivery 
+import razorpay
+import json         # <-- NAYA IMPORT
+import hmac         # <-- NAYA IMPORT
+import hashlib      # <-- NAYA IMPORT
+from rest_framework.views import APIView # <-- NAYA IMPORT
 
+# Model Imports
+from .models import Order, OrderItem, Payment, Address, Coupon
+# ... (baaki imports)
 # Serializer Imports
 from .serializers import (
     CheckoutSerializer, 
@@ -446,7 +455,7 @@ class OrderCancelView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated, IsCustomer]
     serializer_class = OrderDetailSerializer
 
-    @transaction.atomic
+    @transaction.atomic # Poora function ek transaction mein hai
     def post(self, request, *args, **kwargs):
         order_id = self.kwargs.get('order_id')
         try:
@@ -473,14 +482,31 @@ class OrderCancelView(generics.GenericAPIView):
         
         original_status = order.status
         
-        order.status = Order.OrderStatus.CANCELLED
+        # --- NAYA REFUND LOGIC ---
+        payment_to_refund = None
         
         if order.payment_status == Order.PaymentStatus.SUCCESSFUL:
-            order.payment_status = Order.PaymentStatus.REFUNDED
-            print(f"Triggering refund for Order {order.order_id}")
+            # Pehle check karein ki yeh Razorpay payment hai ya COD
+            payment = order.payments.filter(
+                status=Order.PaymentStatus.SUCCESSFUL,
+                payment_method='RAZORPAY'
+            ).first()
+            
+            if payment and payment.transaction_id:
+                # Yeh Razorpay payment hai, refund ke liye mark karein
+                payment_to_refund = payment
+            else:
+                # Yeh COD ya koi aur method tha, bas status badal dein
+                order.payment_status = Order.PaymentStatus.REFUNDED
+                print(f"Marking non-Razorpay order {order.order_id} as REFUNDED")
         
-        order.save()
+        # --- END NAYA LOGIC ---
 
+        # Order ko CANCELLED set karein
+        order.status = Order.OrderStatus.CANCELLED
+        order.save(update_fields=['status', 'payment_status']) # Status yahaan save karein
+
+        # Delivery ko cancel karein (existing logic)
         try:
             delivery = Delivery.objects.select_for_update().get(order=order)
             
@@ -488,16 +514,19 @@ class OrderCancelView(generics.GenericAPIView):
                 Delivery.DeliveryStatus.PICKED_UP,
                 Delivery.DeliveryStatus.DELIVERED
             ]:
+                # Agar delivery pick up ho gayi hai toh transaction fail kar dein
                 raise Exception(f"Cannot cancel, delivery is already {delivery.status}")
 
             delivery.status = Delivery.DeliveryStatus.CANCELLED
             delivery.save()
 
         except Delivery.DoesNotExist:
-            pass
+            pass # Koi baat nahi agar delivery create nahi hui thi
         except Exception as e:
+            # Upar wala raise Exception yahaan catch hoga
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Stock revert karein (existing logic)
         if original_status == Order.OrderStatus.CONFIRMED:
             order_items = order.items.all()
             inventory_items_to_update = []
@@ -516,5 +545,151 @@ class OrderCancelView(generics.GenericAPIView):
                 StoreInventory.objects.bulk_update(inventory_items_to_update, ['stock_quantity'])
                 print(f"Stock reverted for {len(inventory_items_to_update)} items.")
 
+        # --- NAYA RAZORPAY REFUND API CALL ---
+        # Yeh @transaction.atomic block ke andar hi hai
+        if payment_to_refund:
+            try:
+                print(f"Attempting Razorpay refund for Order {order.order_id} (Payment ID: {payment_to_refund.transaction_id})")
+                
+                client = razorpay.Client(
+                    auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
+                )
+                
+                # Amount ko paise mein convert karein
+                refund_amount_paise = int(payment_to_refund.amount * 100)
+                
+                # Refund API call
+                refund_response = client.payment.refund(
+                    payment_to_refund.transaction_id, 
+                    {'amount': refund_amount_paise}
+                )
+                
+                # Check karein ki refund process hua
+                if refund_response and refund_response.get('status') == 'processed':
+                    order.payment_status = Order.PaymentStatus.REFUNDED
+                    payment_to_refund.status = Order.PaymentStatus.REFUNDED
+                    payment_to_refund.save(update_fields=['status'])
+                    order.save(update_fields=['payment_status'])
+                    print(f"Successfully processed refund for {order.order_id}")
+                else:
+                    # Refund create hua but process nahi hua
+                    print(f"Refund for {order.order_id} created but status is: {refund_response.get('status')}")
+                    raise Exception("Refund status was not 'processed'. Manual check required.")
+
+            except Exception as e:
+                # Agar refund fail hota hai (jaise "Payment already refunded"),
+                # toh poora transaction rollback ho jayega.
+                print(f"ERROR: Razorpay refund failed for {order.order_id}: {str(e)}")
+                # User ko error dikhayein
+                return Response(
+                    {"error": f"Order cancellation failed because refund could not be processed: {str(e)}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        # --- END NAYA API CALL ---
+
+        # Sab kuch safal raha
         serializer = self.get_serializer(order, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class RazorpayWebhookView(APIView):
+    """
+    Razorpay Webhook Endpoint.
+    Yeh Razorpay se server-to-server updates (jaise 'payment.captured')
+    receive karta hai. Yeh client-side verification ka backup hai.
+    """
+    permission_classes = [AllowAny] # Koi bhi (Razorpay) isse call kar sakta hai
+
+    def post(self, request, *args, **kwargs):
+        
+        # Step 1: Webhook signature ko verify karein
+        raw_body = request.body
+        webhook_signature = request.headers.get('X-Razorpay-Signature')
+        
+        if webhook_signature is None:
+            return Response(
+                {"error": "Signature header missing."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Secret ke saath signature verify karein
+            client = razorpay.Client(
+                auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
+            )
+            client.utility.verify_webhook_signature(
+                raw_body.decode('utf-8'), 
+                webhook_signature, 
+                settings.RAZORPAY_WEBHOOK_SECRET
+            )
+        except razorpay.errors.SignatureVerificationError:
+            print("Webhook Signature Verification Failed")
+            return Response(
+                {"error": "Invalid signature."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            print(f"Webhook error: {e}")
+            return Response(
+                {"error": str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # Step 2: Signature valid hai, ab payload process karein
+        try:
+            payload = json.loads(raw_body)
+            event = payload.get('event')
+
+            if event == 'payment.captured':
+                payment_entity = payload.get('payload', {}).get('payment', {}).get('entity', {})
+                razorpay_order_id = payment_entity.get('order_id')
+                razorpay_payment_id = payment_entity.get('id')
+
+                if not razorpay_order_id or not razorpay_payment_id:
+                    return Response({"error": "Payload missing data."}, status=status.HTTP_400_BAD_REQUEST)
+
+                # Apne 'Payment' object ko dhoondein
+                try:
+                    payment = Payment.objects.get(razorpay_order_id=razorpay_order_id)
+                    order = payment.order
+                    
+                    # Agar order pehle hi PENDING hai (yaani process nahi hua)
+                    if order.status == Order.OrderStatus.PENDING:
+                        print(f"Webhook: Processing PENDING order {order.order_id}")
+                        
+                        # Payment ID update karein
+                        payment.transaction_id = razorpay_payment_id
+                        payment.save()
+                        
+                        # Hamara common function call karein
+                        success, result = process_successful_payment(order.order_id)
+                        
+                        if success:
+                            print(f"Webhook: Successfully processed order {order.order_id}")
+                        else:
+                            print(f"Webhook: Failed to process order {order.order_id}: {result}")
+                    
+                    elif order.status == Order.OrderStatus.CONFIRMED:
+                        print(f"Webhook: Order {order.order_id} is already confirmed. Ignoring.")
+                        
+                except Payment.DoesNotExist:
+                    print(f"Webhook ERROR: Payment with RZP Order ID {razorpay_order_id} not found.")
+                    # Hum 404 nahi bhejenge, 200 hi bhejenge taaki Razorpay retry na kare
+                    pass
+            
+            else:
+                print(f"Webhook: Received unhandled event '{event}'")
+
+            # Hamesha 200 OK return karein
+            return Response(
+                {"status": "ok"}, 
+                status=status.HTTP_200_OK
+            )
+            
+        except json.JSONDecodeError:
+            return Response({"error": "Invalid JSON payload."}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            print(f"Webhook payload processing error: {e}")
+            return Response({"error": "Internal server error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

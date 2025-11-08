@@ -5,21 +5,73 @@ import time
 from firebase_admin import messaging # <-- Naya import
 from django.contrib.auth import get_user_model # <-- Naya import
 import firebase_admin # <-- Naya import
+from firebase_admin import messaging # <-- Naya import
+import requests
+from django.conf import settings
 
 User = get_user_model()
 
 
+# accounts/tasks.py
+
 @shared_task
 def send_otp_sms_task(phone_number, otp):
     """
-    Ek background task jo OTP SMS bhejta hai.
+    Ek background task jo OTP SMS bhejta hai (Updated with real API).
     """
-    print(f"CELERY TASK: Sending SMS to {phone_number}...")
-    # Yahaan real SMS gateway API call hogi
-    print(f"CELERY TASK: Sent OTP {otp} to {phone_number}")
     
-    return f"SMS sent to {phone_number}"
+    # --- Puraana Code ---
+    # print(f"CELERY TASK: Sending SMS to {phone_number}...")
+    # print(f"CELERY TASK: Sent OTP {otp} to {phone_number}")
+    # return f"SMS sent to {phone_number}"
+    # --- End Puraana Code ---
 
+    # --- NAYA REAL API CALL (TWILIO EXAMPLE) ---
+    
+    # Check karein ki settings mein keys hain ya nahi
+    if not all([settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN, settings.TWILIO_PHONE_NUMBER]):
+        print(f"CELERY TASK (WARNING): Twilio settings missing. Falling back to console.")
+        print(f"CELERY TASK (Mock SMS): OTP for {phone_number} is {otp}")
+        return "Twilio settings missing. Mock SMS printed."
+
+    try:
+        # Twilio API URL
+        url = f"https://api.twilio.com/2010-04-01/Accounts/{settings.TWILIO_ACCOUNT_SID}/Messages.json"
+        
+        # Data jo Twilio ko bhejna hai
+        data = {
+            "From": settings.TWILIO_PHONE_NUMBER,
+            "To": phone_number, # e.g., +919876543210
+            "Body": f"[QuickDash] Aapka OTP hai: {otp}. Yeh 5 minute ke liye valid hai."
+        }
+        
+        # Basic Auth (Username = SID, Password = Auth Token)
+        auth = (settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+
+        print(f"CELERY TASK: Sending real SMS to {phone_number} via Twilio...")
+        
+        # API call karein
+        response = requests.post(url, data=data, auth=auth, timeout=10) # 10 sec timeout
+
+        # Check karein ki SMS gaya ya nahi
+        if response.status_code == 201: # 201 = Created
+            print(f"CELERY TASK: Successfully sent SMS to {phone_number}. SID: {response.json().get('sid')}")
+            return f"SMS sent to {phone_number}"
+        else:
+            # Error hui toh log karein
+            print(f"CELERY TASK ERROR: Failed to send SMS to {phone_number}.")
+            print(f"Status Code: {response.status_code}, Response: {response.text}")
+            return f"Failed to send SMS: {response.text}"
+
+    except requests.exceptions.RequestException as e:
+        # Network error ya timeout
+        print(f"CELERY TASK ERROR (RequestException): {e}")
+        return f"SMS API Request Failed: {e}"
+    except Exception as e:
+        # Koi aur error
+        print(f"CELERY TASK ERROR (General): {e}")
+        return f"SMS task failed: {e}"
+    # --- END NAYA CODE ---
 
 @shared_task
 def send_fcm_push_notification_task(user_id, title, body, data=None):

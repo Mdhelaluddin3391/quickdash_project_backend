@@ -227,6 +227,16 @@ CHANNEL_LAYERS = {
 # Razorpay Settings
 RAZORPAY_KEY_ID = config('RAZORPAY_KEY_ID')
 RAZORPAY_KEY_SECRET = config('RAZORPAY_KEY_SECRET')
+RAZORPAY_WEBHOOK_SECRET = config('RAZORPAY_WEBHOOK_SECRET', default=None) # Humne isse pehle add kiya tha
+
+# --- NAYA SMS Gateway Settings (Twilio Example) ---
+TWILIO_ACCOUNT_SID = config('TWILIO_ACCOUNT_SID', default=None)
+TWILIO_AUTH_TOKEN = config('TWILIO_AUTH_TOKEN', default=None)
+TWILIO_PHONE_NUMBER = config('TWILIO_PHONE_NUMBER', default=None)
+# --- END Naya Code ---
+
+
+
 # Delivery & Order Settings
 BASE_DELIVERY_FEE = 20.00  # (Aapki default fee)
 FEE_PER_KM = 5.00         # (Aapki per-km fee)

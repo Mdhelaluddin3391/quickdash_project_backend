@@ -6,7 +6,8 @@ from .views import (
     OrderHistoryView, 
     OrderDetailView, 
     PaymentVerificationView,
-    OrderCancelView
+    OrderCancelView,
+    RazorpayWebhookView
 )
 from delivery.models import Delivery
 
@@ -17,7 +18,7 @@ urlpatterns = [
     path('', OrderHistoryView.as_view(), name='order-history'),
     path('<str:order_id>/', OrderDetailView.as_view(), name='order-detail'),
     path('<str:order_id>/cancel/', OrderCancelView.as_view(), name='order-cancel'),
-    # path('webhook/payment-success/', 
-    #      PaymentWebhookView.as_view(), 
-    #      name='payment-webhook'),
+    path('webhook/razorpay/', 
+         RazorpayWebhookView.as_view(), 
+         name='razorpay-webhook'),
 ]

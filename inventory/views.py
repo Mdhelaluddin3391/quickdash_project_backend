@@ -7,12 +7,15 @@ from django.db.models import Q
 from rest_framework.response import Response
 from .serializers import StoreInventoryListSerializer, StoreInventorySerializer
 from rest_framework import status
-
+from rest_framework import status
 # --- STEP 1.1: NAYE IMPORTS ADD KAREIN ---
 from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank
 from django.db.models import F
 # --- END NAYE IMPORTS ---
-
+from rest_framework.permissions import IsAuthenticated
+from accounts.permissions import IsStoreStaff
+from .serializers import StaffInventoryUpdateSerializer # Hamara naya serializer
+# --- END NAYE IMPORTS ---
 
 class StoreInventoryListView(generics.ListAPIView):
     """
@@ -128,3 +131,57 @@ class ProductSearchView(generics.ListAPIView):
             )
             
         return super().list(request, *args, **kwargs)
+
+
+# inventory/views.py
+
+# ... (ProductSearchView ke baad)
+
+class StaffInventoryUpdateView(generics.RetrieveUpdateAPIView):
+    """
+    API: GET, PATCH /api/inventory/staff/item/<pk>/update/
+    Store Staff ko unke store ke ek inventory item ko update karne deta hai.
+    """
+    permission_classes = [IsAuthenticated, IsStoreStaff]
+    serializer_class = StaffInventoryUpdateSerializer
+    
+    def get_queryset(self):
+        """
+        Yeh function ensure karta hai ki staff sirf apne hi store
+        ke items ko access kar sake.
+        """
+        user = self.request.user
+        if hasattr(user, 'store_staff_profile') and user.store_staff_profile.store:
+            # Staff ke store se jude sabhi inventory items ko filter karein
+            store = user.store_staff_profile.store
+            return StoreInventory.objects.filter(store=store).select_related(
+                'variant__product'
+            )
+        
+        # Agar staff kisi store se nahi juda hai, toh unhein kuch nahi milega
+        return StoreInventory.objects.none()
+
+    def get_object(self):
+        """
+        Queryset se ek single object nikaalta hai.
+        Agar item staff ke store ka nahi hai, toh 404 Not Found error aayega.
+        """
+        obj = super().get_object()
+        return obj
+
+    def update(self, request, *args, **kwargs):
+        # Hum 'PUT' (poora update) disable kar rahe hain, sirf 'PATCH' (partial update) allow karenge
+        if request.method == 'PUT':
+            return Response(
+                {"error": "PUT method not allowed. Please use PATCH."},
+                status=status.HTTP_405_METHOD_NOT_ALLOWED
+            )
+        
+        # 'partial=True' yeh ensure karta hai ki yeh PATCH request hai
+        # Isse staff sirf 'stock_quantity' ya sirf 'price' bhi bhej sakta hai
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        return Response(serializer.data)

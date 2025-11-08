@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import StoreInventoryListView, StoreInventoryDetailView
-from .views import StoreInventoryListView, StoreInventoryDetailView, ProductSearchView
+from .views import StoreInventoryListView, StoreInventoryDetailView, ProductSearchView, StaffInventoryUpdateView
 
 urlpatterns = [
 
@@ -16,4 +16,8 @@ urlpatterns = [
      path('search/', 
          ProductSearchView.as_view(), 
          name='product-search'),
+
+    path('staff/item/<int:pk>/update/',
+         StaffInventoryUpdateView.as_view(),
+         name='staff-inventory-update'),
 ]

@@ -18,6 +18,8 @@ from .serializers import (
     DeliveryUpdateSerializer,
     StaffOrderStatusUpdateSerializer
 )
+from django.contrib.gis.measure import D  # <-- YEH NAYI LINE ADD KAREIN
+from rest_framework import generics, status
 from orders.models import Order
 from orders.serializers import OrderDetailSerializer
 from accounts.permissions import IsRider, IsStoreStaff
@@ -320,27 +322,53 @@ class StaffUpdateOrderStatusView(generics.GenericAPIView):
                 delivery.status = Delivery.DeliveryStatus.PENDING_ACCEPTANCE
                 delivery.save()
 
+            # --- NAYA OPTIMIZED NOTIFICATION LOGIC ---
             try:
-                channel_layer = get_channel_layer()
-                delivery_data = RiderDeliverySerializer(delivery, context={'request': request}).data
+                store_location = order.store.location
+                if not store_location:
+                    raise Exception("Store ki location set nahi hai.")
+
+                # Step 1: Store ke 10km ke daayre mein available riders dhoondein
+                nearby_available_riders = RiderProfile.objects.filter(
+                    is_online=True,
+                    on_delivery=False,
+                    current_location__isnull=False,
+                    # D(km=10) = 10 kilometer
+                    current_location__distance_lte=(store_location, D(km=10)) 
+                ).annotate(
+                    # Store se distance calculate karein
+                    distance_to_store=Distance('current_location', store_location)
+                ).order_by(
+                    'distance_to_store' # Sabse nazdeek wala rider sabse pehle
+                )[:10] # Sirf top 10 ko bhejein
+
+                if not nearby_available_riders.exists():
+                    print(f"Order {order.order_id} READY, lekin koi nearby rider available nahi hai.")
+                    # TODO: Yahaan aap ek task schedule kar sakte hain jo 5 min baad
+                    # dobara riders dhoonde (future optimization)
                 
-                async_to_sync(channel_layer.group_send)(
-                    "online_riders",
-                    {
-                        "type": "new.delivery.notification", 
-                        "delivery": delivery_data
-                    }
-                )
-                print(f"Order {order.order_id} is READY. Notifying 'online_riders'.")
+                else:
+                    channel_layer = get_channel_layer()
+                    delivery_data = RiderDeliverySerializer(delivery, context={'request': request}).data
+                    
+                    # Step 2: Sirf nearby riders ko unke personal group mein notification bhejein
+                    for rider in nearby_available_riders:
+                        group_name = f"rider_{rider.id}"
+                        async_to_sync(channel_layer.group_send)(
+                            group_name,
+                            {
+                                "type": "new.delivery.notification", 
+                                "delivery": delivery_data
+                            }
+                        )
+                    
+                    print(f"Order {order.order_id} READY. Notified {len(nearby_available_riders)} nearby riders.")
+
             except Exception as e:
                 print(f"Error sending channel notification: {e}")
+            # --- END NAYA LOGIC ---
 
             return Response(
                 OrderDetailSerializer(order, context={'request': request}).data,
                 status=status.HTTP_200_OK
             )
-
-        return Response(
-            {"error": f"Invalid status transition from '{order.status}' to '{new_status}'."},
-            status=status.HTTP_400_BAD_REQUEST
-        )
