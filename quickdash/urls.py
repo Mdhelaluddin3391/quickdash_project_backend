@@ -31,6 +31,7 @@ urlpatterns = [
     path('api/delivery/', include('delivery.urls')),
     path('api/accounts/', include('accounts.urls')),
     path('api/inventory/', include('inventory.urls')), 
+    path('api/wms/', include('wms.urls')),
 
     # Auth URLs
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

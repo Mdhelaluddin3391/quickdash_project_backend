@@ -16,10 +16,12 @@ import json
 import hmac         
 import hashlib      
 from rest_framework.views import APIView 
-
+from orders.models import OrderItem
 # Task Imports
+from wms.models import WmsStock, PickTask
+from accounts.models import StoreStaffProfile
 from .tasks import process_razorpay_refund_task
-
+from django.utils import timezone
 # Model Imports
 from .models import Order, OrderItem, Payment, Address, Coupon
 from cart.models import Cart
@@ -39,71 +41,172 @@ from .serializers import (
 from accounts.permissions import IsCustomer 
 
 
+# orders/views.py
+
+# ... (saare imports yahaan)
+from wms.models import WmsStock, PickTask
+from accounts.models import StoreStaffProfile
+from orders.models import OrderItem
+# ... (baaki saare imports)
+
+
 def process_successful_payment(order_id):
     """
     Ek PENDING order ko CONFIRMED banata hai.
-    (Stock cut, Delivery create, Cart delete, Coupon use count update)
+    (Stock cut, Delivery create, Coupon use count update)
+    --- AB YEH WMS PICK TASKS BHI BANATA HAI ---
     """
-    
+
     try:
-        order = Order.objects.get(order_id=order_id, status=Order.OrderStatus.PENDING)
+        # Order aur uske items ko pehle hi fetch kar lein
+        order = Order.objects.prefetch_related('items').get(
+            order_id=order_id, 
+            status=Order.OrderStatus.PENDING
+        )
     except Order.DoesNotExist:
         return False, "Order not found or already processed."
 
     try:
         with transaction.atomic():
             order_lock = Order.objects.select_for_update().get(pk=order.pk)
-            
-            cart = Cart.objects.get(user=order.user)
-            cart_items = cart.items.all()
 
+            # Cart se items lene ke bajaye, ab hum order se items lenge
+            order_items = order_lock.items.all()
+
+            # Check karein ki cart (ya order) khaali na ho
+            if not order_items.exists():
+                 raise Exception("Order has no items to process.")
+
+            # Stock cut logic (yeh pehle se tha)
             inventory_items_to_update = []
-            for item in cart_items:
+            for item in order_items:
+                # Note: YEH ABHI BHI SUMMARY (StoreInventory) SE STOCK CUT KAR RAHA HAI
+                # WMS ke baad, yeh logic badalna chahiye,
+                # lekin abhi ke liye ise chhod dete hain taaki cart flow na toote.
+                # Asal stock 'WmsStock' se PickTaskCompleteView mein katega.
+
+                # Hum WMS flow ke liye stock check ko skip kar sakte hain,
+                # ya WmsStock summary par bharosa kar sakte hain.
                 inv_item = StoreInventory.objects.select_for_update().get(id=item.inventory_item.id)
                 if inv_item.stock_quantity < item.quantity:
-                    raise Exception(f"Item '{inv_item.variant.product.name}' is out of stock.")
-                
-                inv_item.stock_quantity = F('stock_quantity') - item.quantity
-                inventory_items_to_update.append(inv_item)
+                    raise Exception(f"Item '{inv_item.variant.product.name}' is out of stock (Summary).")
 
-            StoreInventory.objects.bulk_update(inventory_items_to_update, ['stock_quantity'])
+                # Yeh summary stock hai, WMS granular stock se alag hai.
+                # Hum isse update NAHI karenge, taaki WMS par control rahe.
 
-            # Coupon usage count update karein
+                # inv_item.stock_quantity = F('stock_quantity') - item.quantity
+                # inventory_items_to_update.append(inv_item)
+
+                pass # Stock cutting ko WMS par chhod dein
+
+            # StoreInventory.objects.bulk_update(inventory_items_to_update, ['stock_quantity'])
+
+            # Coupon usage count update karein (yeh pehle se tha)
             if order_lock.coupon:
                 coupon = Coupon.objects.select_for_update().get(id=order_lock.coupon.id)
                 coupon.times_used = F('times_used') + 1
                 coupon.save(update_fields=['times_used'])
 
-            # Payment status update karein
+            # Payment status update karein (yeh pehle se tha)
             payment = order.payments.first()
             if payment:
                 payment.status = Order.PaymentStatus.SUCCESSFUL
                 payment.save()
-            
-            # Order status update karein
+
+            # Order status update karein (yeh pehle se tha)
             order_lock.status = Order.OrderStatus.CONFIRMED
             order_lock.payment_status = Order.PaymentStatus.SUCCESSFUL
             order_lock.save()
-            
-            # Delivery create karein
-            delivery = Delivery.objects.create(order=order_lock)
 
-            # Cart delete karein
-            cart.items.all().delete()
-            
-            return True, delivery
+            # Delivery create karein (yeh pehle se tha)
+            delivery = Delivery.objects.create(order=order_lock) # Status default AWAITING_PREPARATION hoga
+
+            # Cart delete karein (yeh pehle se tha)
+            try:
+                cart = Cart.objects.get(user=order.user)
+                cart.items.all().delete()
+            except Cart.DoesNotExist:
+                pass # Agar cart pehle hi delete ho gaya ho
+
+            # --- NAYA WMS LOGIC START ---
+
+            # 1. Store ke liye ek available picker dhoondein
+            picker_user = None
+            staff_profile = StoreStaffProfile.objects.filter(
+                store=order_lock.store,
+                can_pick_orders=True
+            ).order_by(
+                    'last_task_assigned_at' # NULLs first, fir sabse purana
+            ).first() # Design doc ke mutabik, pehla available picker
+
+            if staff_profile:
+                picker_user = staff_profile.user
+                    
+                # ZAROORI: Ab is picker ka timestamp update karein
+                staff_profile.last_task_assigned_at = timezone.now()
+                staff_profile.save(update_fields=['last_task_assigned_at'])
+                    
+                print(f"Assigning PickTasks for Order {order_id} to Picker {picker_user.username} (Round-Robin)")
+            else:
+                print(f"WARNING: Order {order_id} ke liye koi available picker (can_pick_orders=True) nahi mila.")
+
+            tasks_created = 0
+
+            # 2. Har OrderItem ke liye PickTask banayein
+            for item in order_items:
+                inventory_item = item.inventory_item
+                quantity_needed = item.quantity
+
+                # Location dhoondein: Aisi WmsStock entry jismein zaroori quantity ho
+                # (MVP Logic: Hum maan rahe hain ki ek item ek hi location se milega)
+                wms_stock = WmsStock.objects.filter(
+                    inventory_summary=inventory_item,
+                    quantity__gte=quantity_needed
+                ).order_by('quantity').first() # Sabse kam stock waali location pehle (ya 'location__code')
+
+                if wms_stock:
+                    PickTask.objects.create(
+                        order=order_lock,
+                        location=wms_stock.location,
+                        variant=inventory_item.variant,
+                        quantity_to_pick=quantity_needed,
+                        assigned_to=picker_user,
+                        status=PickTask.PickStatus.PENDING
+                    )
+                    tasks_created += 1
+                else:
+                    # CRITICAL: Stock summary (StoreInventory) mein tha,
+                    # lekin granular (WmsStock) mein nahi mila!
+                    print(f"CRITICAL ERROR: Order {order_id} - Item {inventory_item.variant.sku} (Qty: {quantity_needed}) WmsStock mein nahi mila!")
+                    # Yahaan hum admin ko alert bhej sakte hain
+                    # Abhi ke liye, order confirm ho jayega lekin PickTask nahi banega.
+
+                    # Hum ek "dummy" task bana sakte hain bina location ke,
+                    # ya ise chhod sakte hain. Chhodna behtar hai.
+                    pass
+
+            print(f"WMS: Created {tasks_created} PickTasks for Order {order_id}")
+            # --- NAYA WMS LOGIC END ---
+
+
+        return True, delivery
 
     except Exception as e:
         order.status = Order.OrderStatus.FAILED
         order.payment_status = Order.PaymentStatus.FAILED
         order.save()
-        
+
         payment = order.payments.first()
         if payment:
             payment.status = Order.PaymentStatus.FAILED
             payment.save()
-        
+
         return False, str(e) 
+
+# ... (Baaqi views jaise CheckoutView, PaymentVerificationView, etc. waise hi rahenge) ...
+
+
+
 
 
 class CheckoutView(generics.GenericAPIView):

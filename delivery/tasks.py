@@ -79,4 +79,3 @@ def retry_unassigned_deliveries():
         delivery.save(update_fields=['updated_at'])
 
     return f"Retried {stuck_deliveries.count()} deliveries."
-}

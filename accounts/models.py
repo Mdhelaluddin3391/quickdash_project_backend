@@ -5,7 +5,7 @@ from django.conf import settings
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.db import transaction
-
+from django.utils import timezone
 
 
 class User(AbstractUser):
@@ -82,6 +82,17 @@ class StoreStaffProfile(models.Model):
     is_manager = models.BooleanField(
         default=False,
         help_text="Kya yeh staff member is store ka manager hai?"
+    )
+    can_pick_orders = models.BooleanField(
+        default=False,
+        help_text="Kya yeh staff member mobile app se order pick kar sakta hai?"
+    )
+    last_task_assigned_at = models.DateTimeField(
+        null=True, 
+        blank=True, 
+        default=None,
+        db_index=True, # Isse query tez hogi
+        help_text="Timestamp jab is picker ko aakhri task assign hua tha"
     )
     
     def __str__(self):
