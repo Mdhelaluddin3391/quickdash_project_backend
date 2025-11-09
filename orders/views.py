@@ -27,7 +27,16 @@ from .models import Order, OrderItem, Payment, Address, Coupon
 from cart.models import Cart
 from inventory.models import StoreInventory
 from delivery.models import Delivery 
+from .models import Order, OrderItem, Payment, Address, Coupon
+from cart.models import Cart, CartItem # <-- 'Cart' aur 'CartItem' ko yahaan import karein
+from inventory.models import StoreInventory
+from delivery.models import Delivery 
 
+# Serializer Imports
+from delivery.serializers import RiderDeliverySerializer 
+from cart.serializers import CartSerializer # <-- 'CartSerializer' ko import karein
+from .serializers import (
+    CheckoutSerializer,)
 # Serializer Imports
 from delivery.serializers import RiderDeliverySerializer 
 from .serializers import (
@@ -155,35 +164,61 @@ def process_successful_payment(order_id):
             # 2. Har OrderItem ke liye PickTask banayein
             for item in order_items:
                 inventory_item = item.inventory_item
-                quantity_needed = item.quantity
+                quantity_to_pick = item.quantity # Hum is variable ko update karenge
 
-                # Location dhoondein: Aisi WmsStock entry jismein zaroori quantity ho
-                # (MVP Logic: Hum maan rahe hain ki ek item ek hi location se milega)
-                wms_stock = WmsStock.objects.filter(
+                # Pehle, summary stock check karein (jo WMS signal se sync hota hai)
+                # Hum transaction ke andar hain, isliye get() ka istemaal sahi hai
+                inv_summary_check = StoreInventory.objects.get(id=inventory_item.id)
+                
+                if inv_summary_check.stock_quantity < quantity_to_pick:
+                    # Agar summary stock hi nahi hai, toh fail karein
+                    raise Exception(f"Item '{inventory_item.variant.product.name}' (SKU: {inventory_item.variant.sku}) is out of stock (Summary). Needed {quantity_to_pick}, found {inv_summary_check.stock_quantity}.")
+
+                # --- NAYA "Greedy" Stock Splitting Logic ---
+                
+                # WmsStock locations dhoondein jahaan stock hai
+                available_stock_locations = WmsStock.objects.filter(
                     inventory_summary=inventory_item,
-                    quantity__gte=quantity_needed
-                ).order_by('quantity').first() # Sabse kam stock waali location pehle (ya 'location__code')
+                    quantity__gt=0
+                ).select_related('location').order_by('location__code') # Picker ki efficiency ke liye location code se sort karein
 
-                if wms_stock:
-                    PickTask.objects.create(
+                pick_tasks_to_create = [] # Is item ke liye tasks list
+
+                for stock_loc in available_stock_locations:
+                    if quantity_to_pick <= 0:
+                        break # Humne zaroori quantity poori kar li
+
+                    # Is location se kitna uthana hai
+                    quantity_from_this_loc = min(stock_loc.quantity, quantity_to_pick)
+                    
+                    # PickTask (memory mein) banayein
+                    task = PickTask(
                         order=order_lock,
-                        location=wms_stock.location,
+                        location=stock_loc.location,
                         variant=inventory_item.variant,
-                        quantity_to_pick=quantity_needed,
+                        quantity_to_pick=quantity_from_this_loc,
                         assigned_to=picker_user,
                         status=PickTask.PickStatus.PENDING
                     )
-                    tasks_created += 1
-                else:
-                    # CRITICAL: Stock summary (StoreInventory) mein tha,
-                    # lekin granular (WmsStock) mein nahi mila!
-                    print(f"CRITICAL ERROR: Order {order_id} - Item {inventory_item.variant.sku} (Qty: {quantity_needed}) WmsStock mein nahi mila!")
-                    # Yahaan hum admin ko alert bhej sakte hain
-                    # Abhi ke liye, order confirm ho jayega lekin PickTask nahi banega.
+                    pick_tasks_to_create.append(task)
+                    
+                    # Zaroori quantity ko kam karein
+                    quantity_to_pick -= quantity_from_this_loc
+                
+                # --- End Greedy Logic ---
 
-                    # Hum ek "dummy" task bana sakte hain bina location ke,
-                    # ya ise chhod sakte hain. Chhodna behtar hai.
-                    pass
+                # 3. Check karein ki poora stock mila ya nahi
+                if quantity_to_pick > 0:
+                    # CRITICAL: Summary stock (e.g., 10) aur granular stock (e.g., total 8) out of sync hain!
+                    # Transaction ko rollback karna zaroori hai.
+                    print(f"CRITICAL SYNC ERROR: Order {order_id} - Item {inventory_item.variant.sku} (Qty: {item.quantity}).")
+                    print(f"Summary stock was {inv_summary_check.stock_quantity}, but granular stock only had {item.quantity - quantity_to_pick} available.")
+                    raise Exception(f"Stock sync error for {inventory_item.variant.sku}. Could not fulfill order. Please audit stock.")
+                
+                else:
+                    # Sab theek hai, tasks ko bulk create karein (performance ke liye)
+                    PickTask.objects.bulk_create(pick_tasks_to_create)
+                    tasks_created += len(pick_tasks_to_create)
 
             print(f"WMS: Created {tasks_created} PickTasks for Order {order_id}")
             # --- NAYA WMS LOGIC END ---
@@ -551,7 +586,7 @@ class OrderDetailView(generics.RetrieveAPIView):
 class OrderCancelView(generics.GenericAPIView):
     """
     API: POST /api/orders/<order_id>/cancel/
-    (BUG FIX APPLIED: Refund logic ko Celery task mein move kar diya gaya hai)
+    (UPDATED with WMS Stock Revert Logic)
     """
     permission_classes = [IsAuthenticated, IsCustomer]
     serializer_class = OrderDetailSerializer
@@ -567,16 +602,15 @@ class OrderCancelView(generics.GenericAPIView):
             return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
 
         # 1. Check karein ki order cancel ho sakta hai ya nahi
-        if order.status not in [Order.OrderStatus.PENDING, Order.OrderStatus.CONFIRMED]:
+        if order.status not in [Order.OrderStatus.PENDING, Order.OrderStatus.CONFIRMED, Order.OrderStatus.PREPARING]:
             return Response(
                 {"error": f"Order in status '{order.status}' cannot be cancelled."},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # 2. Time window check karein
-        if order.status == Order.OrderStatus.CONFIRMED:
+        # 2. Time window check karein (Sirf CONFIRMED/PREPARING par)
+        if order.status in [Order.OrderStatus.CONFIRMED, Order.OrderStatus.PREPARING]:
             confirmation_time = order.updated_at 
-            # settings.ORDER_CANCELLATION_WINDOW ko settings.py mein define karein (e.g., 300 seconds)
             if (timezone.now() - confirmation_time).total_seconds() > getattr(settings, 'ORDER_CANCELLATION_WINDOW', 300): 
                 return Response(
                     {"error": f"Confirmed orders can only be cancelled within {getattr(settings, 'ORDER_CANCELLATION_WINDOW', 300) // 60} minutes."},
@@ -600,15 +634,11 @@ class OrderCancelView(generics.GenericAPIView):
                     ).first()
                     
                     if payment and payment.transaction_id:
-                        # Refund ke liye mark karein
                         payment_to_refund = payment
-                        # Naya status set karein
                         payment.status = Order.PaymentStatus.REFUND_INITIATED
                         payment.save(update_fields=['status'])
-                        
                         order_lock.payment_status = Order.PaymentStatus.REFUND_INITIATED
                     else:
-                        # Yeh COD ya free order tha, bas REFUNDED mark karein
                         order_lock.payment_status = Order.PaymentStatus.REFUNDED
                 
                 # Order ko CANCELLED set karein
@@ -624,28 +654,54 @@ class OrderCancelView(generics.GenericAPIView):
                     delivery.status = Delivery.DeliveryStatus.CANCELLED
                     delivery.save(update_fields=['status'])
                 except Delivery.DoesNotExist:
-                    pass # Koi baat nahi agar delivery create nahi hui thi
+                    pass 
 
-                # Stock revert karein (sirf agar order 'CONFIRMED' tha)
-                if original_status == Order.OrderStatus.CONFIRMED:
-                    order_items = order_lock.items.all()
-                    inventory_items_to_update = []
+                # --- NAYA "SUPERB" WMS STOCK REVERT LOGIC ---
+                # Hum 'StoreInventory' ko direct touch nahi karenge
+                
+                # Agar order CONFIRMED ya PREPARING tha, tabhi stock revert hoga
+                if original_status in [Order.OrderStatus.CONFIRMED, Order.OrderStatus.PREPARING]:
                     
-                    for item in order_items:
-                        if item.inventory_item:
+                    # 1. Saare PENDING PickTasks ko CANCELLED mark karein
+                    pending_tasks = PickTask.objects.filter(
+                        order=order_lock,
+                        status=PickTask.PickStatus.PENDING
+                    )
+                    updated_tasks_count = pending_tasks.update(status=PickTask.PickStatus.CANCELLED)
+                    print(f"Cancelled {updated_tasks_count} pending pick tasks for order {order.order_id}.")
+
+                    # 2. Jo tasks COMPLETED ho chuke hain, unka stock WMS mein wapas add karein
+                    completed_tasks = PickTask.objects.filter(
+                        order=order_lock,
+                        status=PickTask.PickStatus.COMPLETED
+                    )
+                    
+                    if completed_tasks.exists():
+                        stocks_to_update = {} # Dictionary {wms_stock_id: quantity_to_add}
+                        
+                        for task in completed_tasks:
                             try:
-                                inv_item = StoreInventory.objects.select_for_update().get(id=item.inventory_item.id)
-                                inv_item.stock_quantity = F('stock_quantity') + item.quantity
-                                inventory_items_to_update.append(inv_item)
-                            except StoreInventory.DoesNotExist:
-                                print(f"Warning: Stock revert karte waqt Item {item.inventory_item.id} nahi mila.")
-                    
-                    if inventory_items_to_update:
-                        StoreInventory.objects.bulk_update(inventory_items_to_update, ['stock_quantity'])
-                        print(f"Stock reverted for {len(inventory_items_to_update)} items.")
+                                stock_item = WmsStock.objects.select_for_update().get(
+                                    inventory_summary__variant=task.variant,
+                                    location=task.location
+                                )
+                                if stock_item.id not in stocks_to_update:
+                                    stocks_to_update[stock_item.id] = 0
+                                stocks_to_update[stock_item.id] += task.quantity_to_pick
+                            
+                            except WmsStock.DoesNotExist:
+                                 print(f"Warning: Stock revert karte waqt WMS stock for task {task.id} nahi mila.")
+
+                        # Ab stock ko bulk update karein (F() expression ke saath)
+                        if stocks_to_update:
+                            for stock_id, qty in stocks_to_update.items():
+                                WmsStock.objects.filter(id=stock_id).update(quantity=F('quantity') + qty)
+                            print(f"Reverted stock for {len(stocks_to_update)} WMS locations.")
+                            # WmsStock ka signal StoreInventory summary ko automatically fix kar dega
+                
+                # --- END NAYA WMS LOGIC ---
 
         except Exception as e:
-            # Agar transaction fail hota hai (e.g., delivery picked up ho gayi thi)
             return Response(
                 {"error": f"Order cancellation failed during transaction: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST
@@ -654,25 +710,20 @@ class OrderCancelView(generics.GenericAPIView):
         # 4. Transaction ke BAAD, Celery task ko trigger karein
         if payment_to_refund:
             try:
-                # payment_to_refund.id (Payment object ki ID) bhej rahe hain
-                process_razorpay_refund_task.delay(payment_to_refund.id)
-                print(f"Refund task for Payment ID {payment_to_refund.id} ko trigger kar diya gaya hai.")
+                # Humara updated refund task (jo partial refund nahi hai)
+                process_razorpay_refund_task.delay(
+                    payment_id=payment_to_refund.id,
+                    is_partial_refund=False # Full refund
+                )
+                print(f"Full Refund task for Payment ID {payment_to_refund.id} ko trigger kar diya gaya hai.")
             except Exception as e:
-                # Agar Celery down hai, toh admin ko manual refund ke liye alert karein
                 print(f"CRITICAL ERROR: Refund task trigger nahi ho paaya: {e}")
-                # Hum user ko error nahi dikhayenge, kyunki order cancel ho chuka hai
-                # Yahaan par logging (e.g., Sentry) zaroori hai
                 pass
 
         # 5. User ko response dein
-        # Order object ko refresh karein taaki naya status dikhe
         order.refresh_from_db() 
         serializer = self.get_serializer(order, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-# ... (Aapke baaqi views jaise RazorpayWebhookView, RiderRatingView, etc. yahaan rahenge) ...
-
 
 @method_decorator(csrf_exempt, name='dispatch')
 class RazorpayWebhookView(APIView):
@@ -846,3 +897,102 @@ class RiderRatingView(generics.GenericAPIView):
             {"success": "Rider rated successfully."},
             status=status.HTTP_200_OK
         )
+
+
+
+class ReorderView(generics.GenericAPIView):
+    """
+    API: POST /api/orders/<order_id>/reorder/
+    Ek puraane order ko "re-order" karta hai.
+    Yeh puraane order ke items ko user ke current cart mein add karta hai.
+    """
+    permission_classes = [IsAuthenticated, IsCustomer]
+    serializer_class = CartSerializer # Response mein poora cart bhejenge
+
+    def post(self, request, *args, **kwargs):
+        order_id = self.kwargs.get('order_id')
+        user = request.user
+
+        try:
+            # 1. Puraana order dhoondein aur check karein ki woh user ka hai
+            original_order = Order.objects.get(
+                order_id=order_id, 
+                user=user
+            )
+        except Order.DoesNotExist:
+            return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # 2. User ka cart dhoondein (ya banayein)
+        cart, _ = Cart.objects.get_or_create(user=user)
+        
+        # 3. Puraane order ke items lein
+        original_items = original_order.items.all().select_related(
+            'inventory_item__variant__product' # Performance ke liye
+        )
+
+        if not original_items.exists():
+            return Response({"error": "Original order has no items."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 4. Store check karein (puraane order wala store)
+        order_store = original_order.store
+        if not order_store:
+            return Response({"error": "Cannot reorder from an unknown store."}, status=status.HTTP_400_BAD_REQUEST)
+
+        items_added = []
+        items_unavailable = []
+        
+        try:
+            with transaction.atomic():
+                # 5. User ke current cart ko khaali karein
+                # Yeh ensure karta hai ki cart mein sirf naye items hon
+                cart.items.all().delete()
+
+                # 6. Har puraane item ko process karein
+                for item in original_items:
+                    item_name = f"{item.product_name} ({item.variant_name})"
+                    
+                    try:
+                        # 7. Check karein ki woh inventory item abhi bhi maujood hai
+                        current_inventory_item = StoreInventory.objects.get(
+                            id=item.inventory_item_id,
+                            store=order_store
+                        )
+                        
+                        # 8. Stock check karein
+                        if current_inventory_item.is_in_stock and current_inventory_item.stock_quantity >= item.quantity:
+                            # Item available hai, cart mein add karein
+                            CartItem.objects.create(
+                                cart=cart,
+                                inventory_item=current_inventory_item,
+                                quantity=item.quantity
+                            )
+                            items_added.append(f"{item.quantity} x {item_name}")
+                        else:
+                            # Out of stock
+                            items_unavailable.append(f"{item_name} (Out of Stock)")
+                            
+                    except StoreInventory.DoesNotExist:
+                        # Item ab bikna band ho gaya hai
+                        items_unavailable.append(f"{item_name} (No longer available)")
+
+                # 7. Agar koi bhi item add nahi ho paaya, toh transaction rollback karein
+                if not items_added:
+                    raise Exception("Reorder failed: All items are unavailable.")
+
+        except Exception as e:
+            # Agar transaction fail hua (e.g., saare items unavailable)
+            return Response(
+                {"error": str(e), "items_unavailable": items_unavailable},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 8. Success response: Naya cart data aur summary bhejein
+        cart.refresh_from_db() # Cart ko update karein
+        serializer = self.get_serializer(cart, context={'request': request})
+        
+        return Response({
+            "message": "Cart has been updated with available items.",
+            "items_added": items_added,
+            "items_unavailable": items_unavailable,
+            "cart": serializer.data
+        }, status=status.HTTP_200_OK) 

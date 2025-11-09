@@ -1,7 +1,4 @@
 from django.shortcuts import render
-
-# Create your views here.
-# wms/views.py
 from rest_framework import generics, status
 from rest_framework.response import Response
 from django.utils import timezone
@@ -13,19 +10,10 @@ from .serializers import (
     PickTaskSerializer
 )
 from .permissions import IsStoreManager, IsStorePicker
-# wms/views.py (TOP PAR ADD KAREIN)
 
-from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
-from django.conf import settings
-from django.contrib.gis.measure import D
-from django.contrib.gis.db.models.functions import Distance
+# Naya Helper Function import
+from delivery.utils import notify_nearby_riders
 
-from delivery.models import RiderProfile
-from delivery.serializers import RiderDeliverySerializer
-
-# Workflow A: Stock Receive Karna
-# (Design Doc: POST /api/wms/receive-stock/)
 
 class ReceiveStockView(generics.GenericAPIView):
     """
@@ -39,8 +27,6 @@ class ReceiveStockView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Serializer ka .create() method WmsStock entry banayega/update karega
-        # aur signal StoreInventory ko sync kar dega.
         wms_stock_item = serializer.save() 
 
         return Response(
@@ -54,8 +40,6 @@ class ReceiveStockView(generics.GenericAPIView):
             status=status.HTTP_201_CREATED
         )
 
-# Workflow B: Picker ke Tasks
-# (Design Doc: GET /api/wms/my-pick-tasks/)
 
 class PickerTaskListView(generics.ListAPIView):
     """
@@ -66,7 +50,6 @@ class PickerTaskListView(generics.ListAPIView):
     serializer_class = PickTaskSerializer
 
     def get_queryset(self):
-        # Sirf woh tasks jo is user ko assigned hain aur PENDING hain
         return PickTask.objects.filter(
             assigned_to=self.request.user,
             status=PickTask.PickStatus.PENDING
@@ -74,20 +57,17 @@ class PickerTaskListView(generics.ListAPIView):
             'variant__product', 
             'location', 
             'order'
-        ).order_by('created_at') # Sabse purana task pehle
+        ).order_by('created_at')
 
-# wms/views.py (Sirf is class ko replace karein)
-
-# ... (ReceiveStockView aur PickerTaskListView waise hi rahenge) ...
 
 class PickTaskCompleteView(generics.GenericAPIView):
     """
     API: POST /api/wms/pick-tasks/<int:pk>/complete/
     Picker ko ek task 'COMPLETED' mark karne deta hai.
-    --- AB YEH RIDERS KO NOTIFY BHI KARTA HAI ---
+    --- (UPDATED: Ab helper function use karta hai) ---
     """
     permission_classes = [IsStorePicker]
-    serializer_class = PickTaskSerializer # Output dikhane ke liye
+    serializer_class = PickTaskSerializer
 
     def post(self, request, *args, **kwargs):
         pk = self.kwargs.get('pk')
@@ -105,7 +85,6 @@ class PickTaskCompleteView(generics.GenericAPIView):
 
         try:
             with transaction.atomic():
-                # 1. WmsStock ko lock karein aur quantity kam karein
                 stock_item = WmsStock.objects.select_for_update().get(
                     inventory_summary__variant=task.variant,
                     inventory_summary__store=request.user.store_staff_profile.store,
@@ -118,21 +97,18 @@ class PickTaskCompleteView(generics.GenericAPIView):
                 stock_item.quantity -= task.quantity_to_pick
                 stock_item.save() 
 
-                # 2. Task ko 'COMPLETED' mark karein
                 task.status = PickTask.PickStatus.COMPLETED
                 task.completed_at = timezone.now()
                 task.save()
 
-                # 3. Check karein ki order ke sabhi tasks complete ho gaye
                 order = task.order
                 pending_tasks_count = order.pick_tasks.filter(
                     status=PickTask.PickStatus.PENDING
                 ).count()
 
-                delivery_object_for_notification = None # Notification ke liye variable
+                delivery_object_for_notification = None 
 
                 if pending_tasks_count == 0:
-                    # SABHI TASKS COMPLETE!
                     from orders.models import Order
                     from delivery.models import Delivery
 
@@ -143,59 +119,19 @@ class PickTaskCompleteView(generics.GenericAPIView):
                     delivery.status = Delivery.DeliveryStatus.PENDING_ACCEPTANCE
                     delivery.save(update_fields=['status'])
 
-                    delivery_object_for_notification = delivery # Notification ke liye set karein
-
+                    delivery_object_for_notification = delivery 
                     print(f"Order {order.order_id} is now READY_FOR_PICKUP.")
 
-            # --- TRANSACTION KE BAAD (TAAKI DB LOCK NA RAHE) ---
-
-            # 4. (NAYA NOTIFICATION LOGIC)
-            # Agar order ready hua hai, toh riders ko notify karein
+            # Transaction ke BAAD
             if delivery_object_for_notification:
                 try:
-                    store_location = order.store.location
-                    if not store_location:
-                        raise Exception("Store ki location set nahi hai.")
-
-                    nearby_available_riders = RiderProfile.objects.filter(
-                        is_online=True,
-                        on_delivery=False,
-                        current_location__isnull=False,
-                        current_location__distance_lte=(
-                            store_location, 
-                            D(km=settings.RIDER_SEARCH_RADIUS_KM)
-                        )
-                    ).annotate(
-                        distance_to_store=Distance('current_location', store_location)
-                    ).order_by('distance_to_store')[:10]
-
-                    if not nearby_available_riders.exists():
-                        print(f"Order {order.order_id} (WMS) READY, lekin koi nearby rider available nahi hai.")
-                    else:
-                        channel_layer = get_channel_layer()
-                        # Hum request object pass kar rahe hain taaki media URLs sahi bane
-                        delivery_data = RiderDeliverySerializer(
-                            delivery_object_for_notification, 
-                            context={'request': request}
-                        ).data
-
-                        for rider in nearby_available_riders:
-                            group_name = f"rider_{rider.id}"
-                            async_to_sync(channel_layer.group_send)(
-                                group_name,
-                                {
-                                    "type": "new.delivery.notification", 
-                                    "delivery": delivery_data
-                                }
-                            )
-
-                        print(f"Order {order.order_id} (WMS) READY. Notified {len(nearby_available_riders)} nearby riders.")
-
+                    # --- UPDATED CALL ---
+                    notify_nearby_riders(
+                        delivery_object_for_notification, 
+                        context={'request': request}
+                    )
                 except Exception as e:
-                    # Agar notification fail bhi ho, toh picker ko error na dikhe
-                    print(f"CRITICAL: Order ready, but failed to send rider notification: {e}")
-
-            # --- END NAYA NOTIFICATION LOGIC ---
+                    pass # Helper function ab errors ko internally log karta hai
 
             serializer = self.get_serializer(task)
             return Response(serializer.data, status=status.HTTP_200_OK)
@@ -206,7 +142,6 @@ class PickTaskCompleteView(generics.GenericAPIView):
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
-            # Agar transaction fail hua, toh error dein
             return Response(
                 {"error": f"Failed to complete task: {str(e)}"}, 
                 status=status.HTTP_400_BAD_REQUEST

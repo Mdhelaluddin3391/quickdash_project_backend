@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import CategoryListView, StoreListView
-from .views import CategoryListView, StoreListView, NearestStoreView, ReviewListCreateView
+from .views import CategoryListView, StoreListView, NearestStoreView, ReviewListCreateView, HomePageDataView
 
 
 urlpatterns = [
@@ -12,5 +12,6 @@ urlpatterns = [
         ReviewListCreateView.as_view(), 
         name='product-review-list-create'
     ),
+    path('home-data/', HomePageDataView.as_view(), name='home-page-data'),
 
 ]

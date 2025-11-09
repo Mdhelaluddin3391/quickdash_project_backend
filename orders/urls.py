@@ -8,7 +8,8 @@ from .views import (
     PaymentVerificationView,
     OrderCancelView,
     RazorpayWebhookView,
-    RiderRatingView
+    RiderRatingView,
+    ReorderView
 )
 from delivery.models import Delivery
 
@@ -22,5 +23,6 @@ urlpatterns = [
     path('webhook/razorpay/', 
          RazorpayWebhookView.as_view(), 
          name='razorpay-webhook'),
+    path('<str:order_id>/reorder/', ReorderView.as_view(), name='reorder'),
     path('<str:order_id>/rate-delivery/', RiderRatingView.as_view(), name='rate-delivery'),
 ]

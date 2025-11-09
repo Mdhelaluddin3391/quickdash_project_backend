@@ -247,3 +247,38 @@ class Review(TimestampedModel):
             
         except Product.DoesNotExist:
             pass # Product shayad delete ho gaya ho
+
+
+class Banner(TimestampedModel):
+    """
+    Mobile app ki home screen par promotional banners dikhane ke liye.
+    """
+    title = models.CharField(
+        max_length=200,
+        help_text="Banner ka title (Admin mein pehchanne ke liye)"
+    )
+    image = models.ImageField(
+        upload_to='banners/',
+        help_text="Banner ki image (e.g., 1080x500 pixels)"
+    )
+    link = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="Banner par click karne par kahan jaana hai (Optional link)"
+    )
+    order = models.PositiveIntegerField(
+        default=0,
+        help_text="Banners ko sort karne ke liye (0 sabse pehle dikhega)"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="Kya yeh banner abhi active hai?"
+    )
+
+    class Meta:
+        ordering = ['order', 'created_at']
+
+    def __str__(self):
+        return self.title

@@ -41,6 +41,11 @@ class StoreInventory(TimestampedModel):
         default=True,
         help_text="Kya yeh item abhi bikri ke liye available hai?"
     )
+    is_featured = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Kya yeh product Home Page par 'Featured' section mein dikhega?"
+    )
 
     class Meta:
         unique_together = ('store', 'variant')

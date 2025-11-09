@@ -11,13 +11,15 @@ class StoreInventoryAdmin(admin.ModelAdmin):
         'price', 
         'sale_price', 
         'stock_quantity', # Yeh ab WmsStock se sync hoga
-        'is_available'
+        'is_available',
+        'is_featured'
     )
     list_editable = (
         'price', 
         'sale_price', 
         # 'stock_quantity', # <-- Ise yahaan se hata dein
-        'is_available'
+        'is_available',
+        'is_featured'
     )
 
     # stock_quantity ko readonly banayein kyunki yeh calculated hai

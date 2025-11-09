@@ -15,6 +15,20 @@ from .models import Category, Store, Product, Review # <-- Product aur Review im
 from .serializers import CategorySerializer, StoreSerializer, ReviewSerializer # <-- ReviewSerializer import karein
 from rest_framework import status
 from .permissions import HasPurchasedProduct
+from .models import Category, Store, Product, Review, Banner # <-- 'Banner' add karein
+from inventory.models import StoreInventory # <-- Yeh naya import
+from .serializers import (
+    CategorySerializer, 
+    StoreSerializer, 
+    ReviewSerializer, 
+    HomePageDataSerializer # <-- Hamara naya serializer
+)
+from rest_framework.views import APIView # <-- APIView import karein
+from rest_framework.views import APIView 
+from orders.models import OrderItem
+# Task Imports
+from wms.models import WmsStock, PickTask # <-- YEH LINE ADD KAREIN
+from accounts.models import StoreStaffProfile
 
 
 
@@ -145,3 +159,62 @@ class ReviewListCreateView(generics.ListCreateAPIView):
             user=self.request.user,
             product=product
         )
+
+
+class HomePageDataView(APIView):
+    """
+    API: GET /api/store/home-data/?store_id=1
+    Mobile app ki home screen ke liye saara data ek saath deta hai.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        store_id = self.request.query_params.get('store_id')
+
+        if not store_id:
+            return Response(
+                {"error": "store_id query parameter zaroori hai."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Check karein ki store valid hai
+            store = Store.objects.get(id=store_id, is_active=True)
+        except Store.DoesNotExist:
+            return Response(
+                {"error": "Valid store_id zaroori hai."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # 1. Banners fetch karein
+        banners = Banner.objects.filter(is_active=True).order_by('order')
+
+        # 2. Categories fetch karein (sirf top-level)
+        categories = Category.objects.filter(
+            is_active=True, 
+            parent=None
+        ).prefetch_related(
+            'children'
+        )
+
+        # 3. Featured Products fetch karein (sirf us store ke)
+        featured_products = StoreInventory.objects.filter(
+            store=store,
+            is_available=True,
+            is_featured=True,
+            stock_quantity__gt=0
+        ).select_related(
+            'variant__product__category'
+        ).order_by('-updated_at')[:10] # Sirf 10 dikhayein
+
+        # Data ko ek object mein assemble karein
+        data = {
+            'banners': banners,
+            'categories': categories,
+            'featured_products': featured_products
+        }
+
+        # Serializer ko context pass karein taaki image URLs sahi banein
+        serializer = HomePageDataSerializer(data, context={'request': request})
+        
+        return Response(serializer.data, status=status.HTTP_200_OK)

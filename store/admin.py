@@ -1,6 +1,17 @@
 from django.contrib import admin
 from django.contrib.gis.admin import GISModelAdmin 
 from .models import Category, Store, Product, ProductVariant
+from .models import Category, Store, Product, ProductVariant, Banner
+
+
+
+
+
+@admin.register(Banner)
+class BannerAdmin(admin.ModelAdmin):
+    list_display = ('title', 'order', 'is_active', 'link')
+    list_editable = ('order', 'is_active')
+    search_fields = ('title',)
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):

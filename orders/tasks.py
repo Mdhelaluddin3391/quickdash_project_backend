@@ -16,9 +16,12 @@ from celery.exceptions import Retry
     retry_backoff=True, # Har retry mein zyada der wait karega
     max_retries=3       # Max 3 baar retry karega
 )
-def process_razorpay_refund_task(self, payment_id):
+def process_razorpay_refund_task(self, payment_id, amount_to_refund_paise=None, is_partial_refund=False):
     """
+    --- UPDATED ---
     Ek background task jo Razorpay payment ko refund karta hai.
+    Yeh ab 'amount_to_refund_paise' (partial refund ke liye) aur 
+    'is_partial_refund' flags ko support karta hai.
     """
     try:
         payment = Payment.objects.get(id=payment_id)
@@ -26,26 +29,37 @@ def process_razorpay_refund_task(self, payment_id):
         print(f"Refund Task ERROR: Payment ID {payment_id} nahi mila. Task stop kar raha hoon.")
         return f"Payment {payment_id} not found."
 
-    # Agar refund pehle hi ho chuka hai, toh kuch na karein
-    if payment.status == Order.PaymentStatus.REFUNDED:
+    order = payment.order
+    
+    # --- NAYA LOGIC ---
+    if amount_to_refund_paise is None:
+        # Full refund (default behavior)
+        refund_amount_paise = int(payment.amount * 100)
+    else:
+        # Partial refund (new behavior)
+        refund_amount_paise = amount_to_refund_paise
+    
+    if refund_amount_paise <= 0:
+        print(f"Refund Task INFO: Amount to refund is zero or less for Payment {payment_id}. Skipping.")
+        return "Amount is zero."
+    # --- END NAYA LOGIC ---
+
+    # Agar refund pehle hi ho chuka hai (sirf full refund ke liye check karein)
+    if not is_partial_refund and payment.status == Order.PaymentStatus.REFUNDED:
         print(f"Refund Task INFO: Payment {payment_id} pehle hi 'REFUNDED' hai.")
         return "Already refunded."
         
-    # Agar status INITIATED nahi hai (galti se call hua), toh stop karein
-    if payment.status != Order.PaymentStatus.REFUND_INITIATED:
+    # Agar status INITIATED nahi hai (sirf full refund ke liye check karein)
+    if not is_partial_refund and payment.status != Order.PaymentStatus.REFUND_INITIATED:
         print(f"Refund Task ERROR: Payment {payment_id} ka status 'REFUND_INITIATED' nahi hai.")
         return f"Payment status is not {Order.PaymentStatus.REFUND_INITIATED}."
 
-    order = payment.order
-    
     try:
         print(f"Refund Task: Razorpay refund shuru kar raha hoon (Payment ID: {payment.transaction_id})...")
         
         client = razorpay.Client(
             auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
         )
-        
-        refund_amount_paise = int(payment.amount * 100)
         
         # Refund API call
         refund_response = client.payment.refund(
@@ -54,38 +68,39 @@ def process_razorpay_refund_task(self, payment_id):
         )
         
         if refund_response and refund_response.get('status') == 'processed':
-            # Yeh sabse zaroori hai: Payment aur Order ko 'REFUNDED' mark karein
-            payment.status = Order.PaymentStatus.REFUNDED
-            payment.save(update_fields=['status'])
             
-            order.payment_status = Order.PaymentStatus.REFUNDED
-            order.save(update_fields=['payment_status'])
+            # --- NAYA LOGIC ---
+            if not is_partial_refund:
+                # Full refund: Poora status update karein
+                payment.status = Order.PaymentStatus.REFUNDED
+                payment.save(update_fields=['status'])
+                order.payment_status = Order.PaymentStatus.REFUNDED
+                order.save(update_fields=['payment_status'])
+                print(f"Refund Task SUCCESS: Order {order.order_id} (Full) successfully refund ho gaya.")
+            else:
+                # Partial refund: Sirf log karein, status change na karein
+                print(f"Refund Task SUCCESS: Order {order.order_id} (Partial) of {refund_amount_paise} paise successfully refund ho gaya.")
+            # --- END NAYA LOGIC ---
             
-            print(f"Refund Task SUCCESS: Order {order.order_id} (Payment ID: {payment.id}) successfully refund ho gaya.")
             return f"Refund successful for Order {order.order_id}"
         else:
-            # Refund create hua but 'processed' nahi (e.g., 'pending')
             print(f"Refund Task WARNING: Refund for {order.order_id} ka status '{refund_response.get('status')}' hai. Dobara try karein...")
-            # Task ko retry ke liye raise karein
             raise Retry(exc=Exception(f"Refund status was: {refund_response.get('status')}"))
 
-    except RazorpayError as e:
-        # Agar Razorpay se error aaye (e.g., "Payment already refunded")
-        error_code = e.args[0].get('code')
+    except BadRequestError as e: # 'RazorpayError' ko 'BadRequestError' se replace karein (zyada specific)
+        error_code = e.args[0].get('code') if e.args[0] else None
         if error_code == 'BAD_REQUEST_ERROR' and "already been refunded" in str(e):
             print(f"Refund Task INFO: Payment {payment.id} pehle hi refund ho chuka hai (API se pata chala).")
-            # Hum isse successful maankar status update kar denge
-            payment.status = Order.PaymentStatus.REFUNDED
-            payment.save(update_fields=['status'])
-            order.payment_status = Order.PaymentStatus.REFUNDED
-            order.save(update_fields=['payment_status'])
+            if not is_partial_refund:
+                payment.status = Order.PaymentStatus.REFUNDED
+                payment.save(update_fields=['status'])
+                order.payment_status = Order.PaymentStatus.REFUNDED
+                order.save(update_fields=['payment_status'])
             return "Payment was already refunded."
         
-        print(f"Refund Task ERROR (RazorpayError) for Order {order.order_id}: {e}")
-        # Task ko retry ke liye raise karein
+        print(f"Refund Task ERROR (BadRequestError) for Order {order.order_id}: {e}")
         raise self.retry(exc=e)
         
     except Exception as e:
         print(f"Refund Task ERROR (General) for Order {order.order_id}: {e}")
-        # Task ko retry ke liye raise karein
         raise self.retry(exc=e)
