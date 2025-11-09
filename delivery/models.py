@@ -7,6 +7,10 @@ from store.models import TimestampedModel
 from orders.models import Order 
 from accounts.tasks import send_fcm_push_notification_task
 from decimal import Decimal # <-- Import pehle se hai, acchi baat hai
+from django.core.validators import MinValueValidator, MaxValueValidator
+
+
+
 
 class RiderProfile(TimestampedModel):
     """
@@ -106,6 +110,20 @@ class Delivery(TimestampedModel):
         blank=True,
         help_text="Customer ko dikhane wala ETA"
     )
+
+
+    rider_rating = models.PositiveIntegerField(
+        null=True, 
+        blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text="Customer ne rider ko kya rating di (1-5)"
+    )
+    rider_rating_comment = models.TextField(
+        blank=True, 
+        null=True,
+        help_text="Customer ka comment"
+    )
+    # --- END NAYE FIELDS ---
 
 
 

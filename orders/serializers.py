@@ -1,15 +1,17 @@
+# mdhelaluddin3B91/quickdash_project_backend/quickdash_project_backend-2eb660fd81f282e60785ee156912c7ed0e9f9ef6/orders/serializers.py
+
 from rest_framework import serializers
 from .models import Order, OrderItem
 from accounts.serializers import AddressSerializer
 from store.serializers import StoreSerializer
-from delivery.serializers import DeliveryDetailSerializer # <-- STEP 5.3: Naya serializer import kiya
+from delivery.serializers import DeliveryDetailSerializer 
 from rest_framework import serializers
-from .models import Order, OrderItem, Payment, Coupon # <-- Coupon import karein
+from .models import Order, OrderItem, Payment, Coupon 
 from accounts.serializers import AddressSerializer
 from store.serializers import StoreSerializer
 from delivery.serializers import DeliveryDetailSerializer
-from django.utils import timezone # <-- Naya import
-from decimal import Decimal # <-- 1. YEH LINE ADD KAREIN
+from django.utils import timezone 
+from decimal import Decimal 
 
 
 class CouponSerializer(serializers.ModelSerializer):
@@ -53,8 +55,8 @@ class CheckoutSerializer(serializers.Serializer):
         max_digits=10,
         decimal_places=2,
         required=False,
-        default=Decimal('0.00'), # 0.00 ki jagah Decimal('0.00')
-        min_value=Decimal('0.00'), # 2. YAHAN CHANGE KAREIN (0.00 ki jagah Decimal('0.00'))
+        default=Decimal('0.00'), 
+        min_value=Decimal('0.00'), 
         help_text="Optional tip for the rider"
     )
 
@@ -152,3 +154,22 @@ class OrderHistorySerializer(serializers.ModelSerializer):
             'store_name'
         ]
         read_only_fields = fields
+
+# --- NAYA SERIALIZER ---
+class RiderRatingSerializer(serializers.Serializer):
+    """
+    Rider ko rate karne ke liye INPUT serializer.
+    """
+    rating = serializers.IntegerField(
+        required=True,
+        min_value=1,
+        max_value=5,
+        help_text="Rating (1 se 5 star)"
+    )
+    comment = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=500,
+        help_text="Optional comment for the rider"
+    )
+# --- END NAYA SERIALIZER ---

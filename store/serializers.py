@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import Category, Store, Product, ProductVariant
 from accounts.models import User
 from .models import Review
-
+from django.utils import timezone # <-- NAYA IMPORT
 
 class CategorySerializer(serializers.ModelSerializer):
     """
@@ -19,6 +19,7 @@ class StoreSerializer(serializers.ModelSerializer):
     Store ki basic jaankari (naam, address) dikhane ke liye.
     """
     location = serializers.SerializerMethodField()
+    is_open = serializers.SerializerMethodField()
 
     class Meta:
         model = Store
@@ -29,7 +30,8 @@ class StoreSerializer(serializers.ModelSerializer):
             'location', 
             'opening_time', 
             'closing_time', 
-            'is_active'
+            'is_active',
+            'is_open'
         ]
 
     def get_location(self, obj):
@@ -39,6 +41,34 @@ class StoreSerializer(serializers.ModelSerializer):
                 'longitude': obj.location.x
             }
         return None
+
+    def get_is_open(self, obj) -> bool:
+        """
+        Check karta hai ki store abhi (current time) khula hai ya nahi.
+        """
+        if not obj.opening_time or not obj.closing_time:
+            # Agar timing set nahi hai, toh hum assume karte hain ki woh hamesha khula hai
+            return True 
+
+        try:
+            # Hum maante hain ki sabhi times server ke time (UTC) mein hain
+            current_time = timezone.now().time()
+            
+            opening = obj.opening_time
+            closing = obj.closing_time
+
+            if opening < closing:
+                # Standard case (e.g., 09:00 se 21:00)
+                return opening <= current_time < closing
+            else:
+                # Overnight case (e.g., 21:00 se 05:00)
+                # Ya toh current time opening time se zyada hai (raat 21:00 - 23:59)
+                # Ya current time closing time se kam hai (subah 00:00 - 05:00)
+                return current_time >= opening or current_time < closing
+        
+        except Exception:
+            # Koi error aane par (jaise invalid time format), default True
+            return True
 
 
 class ProductSerializer(serializers.ModelSerializer):

@@ -27,7 +27,10 @@ import json
 import hmac         
 import hashlib      
 from rest_framework.views import APIView 
-
+# --- NAYE IMPORTS ---
+from django.db.models import Avg # Rider ki average rating ke liye
+from decimal import Decimal # Average rating ko save karne ke liye
+# --- END NAYE IMPORTS ---
 # Model Imports
 from .models import Order, OrderItem, Payment, Address, Coupon
 # ... (baaki imports)
@@ -36,7 +39,8 @@ from .serializers import (
     CheckoutSerializer, 
     OrderDetailSerializer, 
     OrderHistorySerializer,
-    PaymentVerificationSerializer
+    PaymentVerificationSerializer,
+    RiderRatingSerializer
 )
 # Permission Imports
 from accounts.permissions import IsCustomer 
@@ -696,3 +700,75 @@ class RazorpayWebhookView(APIView):
         except Exception as e:
             print(f"Webhook payload processing error: {e}")
             return Response({"error": "Internal server error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+class RiderRatingView(generics.GenericAPIView):
+    """
+    API: POST /api/orders/<order_id>/rate-delivery/
+    Customer ko order deliver hone ke baad rider ko rate karne deta hai.
+    """
+    permission_classes = [IsAuthenticated, IsCustomer]
+    serializer_class = RiderRatingSerializer # Hamara naya serializer
+
+    @transaction.atomic # Database consistency ke liye
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+        
+        order_id = self.kwargs.get('order_id')
+
+        # 1. Order ko dhoondein aur check karein ki woh user ka hai
+        try:
+            order = Order.objects.get(order_id=order_id, user=request.user)
+        except Order.DoesNotExist:
+            return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # 2. Status check karein (Sirf DELIVERED order hi rate ho sakte hain)
+        if order.status != Order.OrderStatus.DELIVERED:
+            return Response(
+                {"error": "Aap sirf 'DELIVERED' orders ko hi rate kar sakte hain."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 3. Delivery object dhoondein
+        try:
+            # Hum order se delivery tak OneToOne related_name 'delivery' ka istemaal kar rahe hain
+            delivery = order.delivery 
+        except Delivery.DoesNotExist:
+            # Aisa hona nahi chahiye agar order delivered hai, lekin safety check
+            return Response({"error": "Delivery details not found for this order."}, status=status.HTTP_404_NOT_FOUND)
+
+        # 4. Check karein ki pehle se rated toh nahi hai
+        if delivery.rider_rating is not None:
+            return Response(
+                {"error": "Aap is delivery ko pehle hi rate kar chuke hain."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # 5. Rating ko Delivery object par save karein
+        delivery.rider_rating = validated_data['rating']
+        delivery.rider_rating_comment = validated_data.get('comment')
+        delivery.save(update_fields=['rider_rating', 'rider_rating_comment'])
+
+        # 6. Rider ki average rating update karein
+        rider = delivery.rider
+        if rider:
+            # Rider ki sabhi *rated* deliveries ka average nikaalein
+            new_avg = Delivery.objects.filter(
+                rider=rider, 
+                rider_rating__isnull=False # Sirf rated wali
+            ).aggregate(
+                avg_rating=Avg('rider_rating')
+            )['avg_rating']
+            
+            if new_avg is not None:
+                # RiderProfile par rating update karein
+                rider.rating = Decimal(new_avg).quantize(Decimal('0.01'))
+                rider.save(update_fields=['rating'])
+        
+        return Response(
+            {"success": "Rider rated successfully."},
+            status=status.HTTP_200_OK
+        )
