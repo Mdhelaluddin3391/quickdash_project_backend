@@ -5,7 +5,10 @@ from rest_framework import generics, status, permissions
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.core.cache import cache
-
+from django.db import transaction
+from django.utils import timezone
+from delivery.models import Delivery
+from wms.models import PickTask
 # Model Imports
 from .models import User, Address, CustomerProfile
 
@@ -46,7 +49,10 @@ class SendOTPView(generics.GenericAPIView):
         phone_number = serializer.validated_data['phone_number']
 
  
-        otp = random.randint(1000, 9999)
+        # --- BUG FIX ---
+        # 4-digit (1000, 9999) se 6-digit (100000, 999999) kiya gaya
+        otp = random.randint(100000, 999999)
+        # --- END BUG FIX ---
 
         send_otp_sms_task.delay(phone_number, otp)
 
@@ -168,31 +174,93 @@ class AddressDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class DeleteAccountView(generics.GenericAPIView):
     """
-    User ko "soft-delete" karta hai (account deactivate karta hai).
-    User ka data (orders, etc.) database mein rehta hai.
+    --- UPDATED ---
+    User ko "anonymize" (gumnaam) karta hai.
+    - Customers: Saari personal details (address, phone, name) remove ho jaati hain.
+    - Staff/Riders: Agar work history hai, toh account sirf deactivate hota hai
+      taaki purane records (payouts, deliveries) kharaab na hon.
     """
     permission_classes = [permissions.IsAuthenticated]
 
     def delete(self, request, *args, **kwargs):
         user = request.user
         
-        # User ko delete karne ke bajaaye deactivate karein
-        user.is_active = False
+        # Hum check karenge ki user ko "anonymize" karna hai ya sirf "deactivate"
+        should_anonymize = True 
         
-        # Optional: User ka FCM token clear kar dein
-        user.fcm_token = None 
-        
-        user.save(update_fields=['is_active', 'fcm_token'])
-        
-        # Note: Humein user ko logout bhi karna chahiye.
-        # SimpleJWT token ko server se invalidate karna mushkil hai,
-        # isliye frontend (app) ko response milte hi token delete kar dena chahiye.
-        
-        return Response(
-            {"success": "Aapka account successfully deactivate kar diya gaya hai."}, 
-            status=status.HTTP_204_NO_CONTENT
-        )
+        try:
+            with transaction.atomic():
+                # User object ko lock karein
+                user_lock = User.objects.select_for_update().get(pk=user.pk)
 
+                # Check 1: Kya user Rider hai?
+                if hasattr(user_lock, 'rider_profile'):
+                    # Check karein ki kya rider ne kabhi koi delivery ki hai
+                    if Delivery.objects.filter(rider=user_lock.rider_profile).exists():
+                        should_anonymize = False
+                        print(f"Rider {user_lock.username} ko deactivate kiya ja raha hai (work history hai).")
+
+                # Check 2: Kya user Store Staff hai?
+                if hasattr(user_lock, 'store_staff_profile') and should_anonymize:
+                    # Check karein ki kya staff ne kabhi koi task pick kiya hai
+                    if PickTask.objects.filter(assigned_to=user_lock).exists():
+                        should_anonymize = False
+                        print(f"Staff {user_lock.username} ko deactivate kiya ja raha hai (work history hai).")
+
+                # Ab action lein
+                
+                user_lock.is_active = False
+                user_lock.fcm_token = None
+                
+                if should_anonymize:
+                    # Case A: Yeh ek Customer hai (ya staff/rider bina history ke)
+                    # Inka saara data "gumnaam" kar do
+                    
+                    print(f"Customer {user_lock.username} ko anonymize kiya ja raha hai.")
+                    
+                    # 1. Saare addresses hamesha ke liye delete karein
+                    user_lock.addresses.all().delete()
+                    
+                    # 2. Personal info ko badal dein
+                    timestamp = int(timezone.now().timestamp())
+                    unique_id = f"del_{timestamp}"
+                    
+                    user_lock.username = unique_id
+                    user_lock.phone_number = f"+{unique_id}" # Phone number free kar dein
+                    user_lock.email = f"{unique_id}@deleted.com" # Email free kar dein
+                    user_lock.first_name = "Anonymous"
+                    user_lock.last_name = "User"
+                    user_lock.profile_picture = None # Profile pic hata dein
+                    
+                    # Save karein (saare fields update honge)
+                    user_lock.save()
+                    
+                else:
+                    # Case B: Yeh ek Staff/Rider hai jiska work data hai
+                    # Inhe sirf deactivate karein, data nahi badlein
+                    
+                    # (Optional) Rider ko offline kar dein
+                    if hasattr(user_lock, 'rider_profile'):
+                        user_lock.rider_profile.is_online = False
+                        user_lock.rider_profile.save(update_fields=['is_online'])
+                        
+                    # Sirf zaroori fields save karein
+                    user_lock.save(update_fields=['is_active', 'fcm_token'])
+
+            # Transaction successful
+            return Response(
+                {"success": "Aapka account successfully deactivate/anonymize kar diya gaya hai."}, 
+                status=status.HTTP_204_NO_CONTENT
+            )
+
+        except Exception as e:
+            # Agar transaction fail hua
+            print(f"Account deletion failed for user {user.id}: {e}")
+            return Response(
+                {"error": "Account deletion failed. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+# --- END UPDATED VIEW ---
         
 class UpdateFCMTokenView(generics.GenericAPIView):
     """
@@ -229,8 +297,10 @@ class StaffPasswordResetRequestView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
         phone_number = serializer.validated_data['phone_number']
 
-        # 4 digit ka OTP generate karein
-        otp = random.randint(1000, 9999)
+        # --- BUG FIX ---
+        # 4-digit (1000, 9999) se 6-digit (100000, 999999) kiya gaya
+        otp = random.randint(100000, 999999)
+        # --- END BUG FIX ---
 
         # Celery task se OTP SMS bhejwaayein
         send_otp_sms_task.delay(phone_number, otp)

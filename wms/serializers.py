@@ -95,3 +95,14 @@ class PickTaskSerializer(serializers.ModelSerializer):
             'status',
             'created_at'
         ]
+
+class PickTaskReportIssueSerializer(serializers.Serializer):
+    """
+    Input ke liye: Jab picker ek task par issue report karta hai.
+    """
+    notes = serializers.CharField(
+        required=True, 
+        allow_blank=False,
+        max_length=500,
+        help_text="Issue ka kaaran (e.g., 'Item not found', 'Stock mismatch')"
+    )

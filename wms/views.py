@@ -7,7 +7,8 @@ from django.db import transaction
 from .models import PickTask, WmsStock
 from .serializers import (
     WmsStockReceiveSerializer, 
-    PickTaskSerializer
+    PickTaskSerializer,
+    PickTaskReportIssueSerializer
 )
 from .permissions import IsStoreManager, IsStorePicker
 
@@ -145,4 +146,95 @@ class PickTaskCompleteView(generics.GenericAPIView):
             return Response(
                 {"error": f"Failed to complete task: {str(e)}"}, 
                 status=status.HTTP_400_BAD_REQUEST
+            )
+        
+
+class PickTaskReportIssueView(generics.GenericAPIView):
+    """
+    API: POST /api/wms/pick-tasks/<int:pk>/report-issue/
+    Picker ko ek task par issue (e.g., "item nahi mila") report karne deta hai.
+    """
+    permission_classes = [IsStorePicker]
+    serializer_class = PickTaskReportIssueSerializer # Input serializer
+
+    def post(self, request, *args, **kwargs):
+        pk = self.kwargs.get('pk')
+        try:
+            task = PickTask.objects.get(
+                id=pk,
+                assigned_to=request.user,
+                status=PickTask.PickStatus.PENDING # Sirf PENDING task ko report kar sakte hain
+            )
+        except PickTask.DoesNotExist:
+            return Response(
+                {"error": "Task not found or is not pending."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Task ko 'ISSUE' mark karein aur notes save karein
+        with transaction.atomic():
+            task.status = PickTask.PickStatus.ISSUE
+            task.picker_notes = serializer.validated_data['notes']
+            task.save(update_fields=['status', 'picker_notes', 'updated_at'])
+
+        print(f"Picker {request.user.username} reported issue on Task {task.id}: {task.picker_notes}")
+
+        # Response mein updated task bhejein
+        response_serializer = PickTaskSerializer(task, context={'request': request})
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+    
+
+class RequestNewTaskView(generics.GenericAPIView):
+    """
+    API: POST /api/wms/request-new-task/
+    Picker ko ek naya unassigned task "pull" (request) karne deta hai.
+    """
+    permission_classes = [IsStorePicker]
+    serializer_class = PickTaskSerializer # Response ke liye
+
+    def post(self, request, *args, **kwargs):
+        picker_profile = request.user.store_staff_profile
+        store = picker_profile.store
+
+        try:
+            with transaction.atomic():
+                # 1. Store ke sabse puraane unassigned task ko dhoondein aur lock karein
+                # 'select_for_update(skip_locked=True)' ka matlab hai ki agar do picker
+                # ek hi samay par request karte hain, toh ek ko task milega aur doosre
+                # ko agla task milega (ya error nahi aayega).
+                task = PickTask.objects.select_for_update(skip_locked=True).filter(
+                    order__store=store,
+                    status=PickTask.PickStatus.PENDING,
+                    assigned_to__isnull=True # <-- Main logic
+                ).order_by('created_at').first() # Sabse puraana task
+
+                if not task:
+                    # Agar koi unassigned task nahi mila
+                    return Response(
+                        {"message": "No unassigned tasks available."},
+                        status=status.HTTP_200_OK
+                    )
+                
+                # 2. Task ko is picker ko assign karein
+                task.assigned_to = request.user
+                task.save(update_fields=['assigned_to', 'updated_at'])
+                
+                # 3. Picker ka 'last_task_assigned_at' update karein
+                picker_profile.last_task_assigned_at = timezone.now()
+                picker_profile.save(update_fields=['last_task_assigned_at'])
+            
+            # 4. Success response (poora task detail bhejein)
+            print(f"Task {task.id} auto-assigned to picker {request.user.username}")
+            serializer = self.get_serializer(task, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            # Shayad 'skip_locked=True' ki wajah se ya koi aur error
+            print(f"Error during new task request: {e}")
+            return Response(
+                {"error": "Could not assign task, please try again."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE # 503 matlab "thodi der baad try karo"
             )

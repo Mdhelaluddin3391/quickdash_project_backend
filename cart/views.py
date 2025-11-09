@@ -1,3 +1,4 @@
+# cart/views.py
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -15,14 +16,20 @@ from accounts.permissions import IsCustomer
 
 class CartDetailView(generics.RetrieveAPIView):
     """
-    (Is view mein koi badlaav nahi hai)
+    (UPDATED with prefetch for optimization)
     """
     permission_classes = [IsAuthenticated, IsCustomer]
     serializer_class = CartSerializer
 
     def get_object(self):
-        cart, created = Cart.objects.get_or_create(user=self.request.user)
+        # --- BUG FIX: N+1 QUERY ---
+        cart, created = Cart.objects.prefetch_related(
+            'items__inventory_item__variant__product__category',
+            'items__inventory_item__store',
+            'store'
+        ).get_or_create(user=self.request.user)
         return cart
+        # --- END BUG FIX ---
 
 
 class CartItemAddView(generics.GenericAPIView):
@@ -42,7 +49,10 @@ class CartItemAddView(generics.GenericAPIView):
         
     
         inventory_item = StoreInventory.objects.get(id=inventory_item_id)
-        cart = Cart.objects.get(user=request.user)
+        
+        cart, _ = Cart.objects.prefetch_related(
+            'items__inventory_item__store'
+        ).get_or_create(user=request.user)
         
         cart_store = cart.store
         if cart_store and cart_store != inventory_item.store:
@@ -81,14 +91,19 @@ class CartItemAddView(generics.GenericAPIView):
             cart_item.quantity = new_quantity
             cart_item.save()
 
-        cart_serializer = CartSerializer(cart, context={'request': request})
+        optimized_cart = Cart.objects.prefetch_related(
+            'items__inventory_item__variant__product__category',
+            'items__inventory_item__store',
+            'store'
+        ).get(id=cart.id)
+        
+        cart_serializer = CartSerializer(optimized_cart, context={'request': request})
         return Response(cart_serializer.data, status=status.HTTP_200_OK)
 
 
 class CartItemUpdateView(generics.GenericAPIView):
     """
     API endpoint: PATCH /api/cart/item/<int:pk>/update/
-    (Ismein bhi Race Condition Fix add kiya gaya hai)
     """
     permission_classes = [IsAuthenticated, IsCustomer]
     serializer_class = CartItemUpdateSerializer
@@ -111,10 +126,13 @@ class CartItemUpdateView(generics.GenericAPIView):
         
         if new_quantity == 0:
             cart_item.delete()
-            return Response(
-                {"success": "Item removed from cart."},
-                status=status.HTTP_200_OK
-            )
+            optimized_cart = Cart.objects.prefetch_related(
+                'items__inventory_item__variant__product__category',
+                'items__inventory_item__store',
+                'store'
+            ).get(user=request.user)
+            cart_serializer = CartSerializer(optimized_cart, context={'request': request})
+            return Response(cart_serializer.data, status=status.HTTP_200_OK)
 
    
         with transaction.atomic():
@@ -134,14 +152,18 @@ class CartItemUpdateView(generics.GenericAPIView):
             cart_item.quantity = new_quantity
             cart_item.save()
   
-        cart = cart_item.cart
-        cart_serializer = CartSerializer(cart, context={'request': request})
+        optimized_cart = Cart.objects.prefetch_related(
+            'items__inventory_item__variant__product__category',
+            'items__inventory_item__store',
+            'store'
+        ).get(id=cart_item.cart.id)
+        cart_serializer = CartSerializer(optimized_cart, context={'request': request})
         return Response(cart_serializer.data, status=status.HTTP_200_OK)
 
 
 class CartItemRemoveView(generics.DestroyAPIView):
     """
-    (Is view mein koi badlaav nahi hai)
+    (UPDATED with prefetch for optimization)
     """
     permission_classes = [IsAuthenticated, IsCustomer]
 
@@ -152,6 +174,39 @@ class CartItemRemoveView(generics.DestroyAPIView):
         instance = self.get_object()
         self.perform_destroy(instance)
         
-        cart = Cart.objects.get(user=request.user)
+        cart = Cart.objects.prefetch_related(
+            'items__inventory_item__variant__product__category',
+            'items__inventory_item__store',
+            'store'
+        ).get(user=request.user)
+        
         cart_serializer = CartSerializer(cart, context={'request': request})
         return Response(cart_serializer.data, status=status.HTTP_200_OK)
+
+
+# --- NAYA VIEW ---
+class CartClearView(generics.GenericAPIView):
+    """
+    API endpoint: DELETE /api/cart/clear/
+    User ke cart se sabhi items ko delete kar deta hai.
+    """
+    permission_classes = [IsAuthenticated, IsCustomer]
+    serializer_class = CartSerializer
+
+    def delete(self, request, *args, **kwargs):
+        # User ka cart dhoondein (ya banayein, agar nahi hai)
+        cart, created = Cart.objects.get_or_create(user=self.request.user)
+        
+        if not created and cart.items.exists():
+            # Agar cart hai aur usmein items hain, toh unhe delete karein
+            cart.items.all().delete()
+            print(f"Cart cleared for user {request.user.username}")
+        
+        # Optimized cart response (khaali cart)
+        optimized_cart = Cart.objects.prefetch_related(
+            'store' # Store None hoga, lekin prefetch safe hai
+        ).get(id=cart.id)
+        
+        serializer = self.get_serializer(optimized_cart, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+# --- END NAYA VIEW ---

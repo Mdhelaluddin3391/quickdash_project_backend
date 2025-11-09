@@ -9,7 +9,9 @@ from .views import (
     StaffNewOrderListView,
     StaffUpdateOrderStatusView,
     RiderEarningsView,
-    RiderCashDepositView
+    RiderCashDepositView,
+    RiderApplicationView,
+    RiderDocumentUploadView
 )
 
 urlpatterns = [
@@ -52,4 +54,11 @@ urlpatterns = [
      path('deposit-cash/', 
          RiderCashDepositView.as_view(), 
          name='rider-deposit-cash'),
+
+     path('apply/', 
+         RiderApplicationView.as_view(), 
+         name='rider-application'),
+    path('apply/upload-document/', 
+         RiderDocumentUploadView.as_view(), 
+         name='rider-upload-document'),
 ]

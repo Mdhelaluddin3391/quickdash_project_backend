@@ -8,7 +8,8 @@ from django.contrib.gis.measure import Distance
 # delivery/serializers.py
 from .models import RiderProfile, Delivery, RiderEarning, RiderCashDeposit # <-- 'RiderCashDeposit' add karein
 from .models import RiderProfile, Delivery, RiderEarning # <-- 'RiderEarning' yahaan add karein
-
+from .models import RiderProfile, Delivery, RiderEarning, RiderCashDeposit, RiderApplication, RiderDocument
+from rest_framework.exceptions import ValidationError
 
 
 
@@ -225,3 +226,105 @@ class RiderCashDepositSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("UPI/Bank Transfer ke liye Transaction ID zaroori hai.")
             
         return value
+    
+class RiderDocumentSerializer(serializers.ModelSerializer):
+    """
+    Rider ke upload kiye gaye document ko dikhane ke liye.
+    """
+    document_file_url = serializers.FileField(source='document_file', read_only=True)
+    
+    class Meta:
+        model = RiderDocument
+        fields = [
+            'id',
+            'document_type',
+            'document_file_url',
+            'is_verified' # Admin verify karega
+        ]
+        read_only_fields = ['is_verified']
+
+class RiderApplicationSerializer(serializers.ModelSerializer):
+    """
+    Rider ki application ka status dikhane ke liye (Read-only).
+    """
+    # Nested documents
+    documents = RiderDocumentSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = RiderApplication
+        fields = [
+            'id',
+            'status',
+            'vehicle_details',
+            'admin_notes', # Admin ne reject kiya toh note dikhega
+            'documents',   # Uploaded documents ki list
+            'created_at',
+            'updated_at'
+        ]
+        read_only_fields = fields # Yeh poora serializer read-only hai
+
+class RiderApplicationCreateSerializer(serializers.ModelSerializer):
+    """
+    Rider se application create karne ke liye input lene ke liye.
+    """
+    class Meta:
+        model = RiderApplication
+        fields = ['vehicle_details'] # User sirf vehicle details daalega
+
+    def validate(self, data):
+        user = self.context['request'].user
+        
+        # Check karein ki user pehle se hi rider toh nahi hai
+        if hasattr(user, 'rider_profile'):
+            raise ValidationError("Aap pehle se hi ek registered rider hain.")
+            
+        # Check karein ki user ne pehle se apply toh nahi kiya
+        if RiderApplication.objects.filter(user=user).exists():
+            raise ValidationError("Aap pehle hi application submit kar chuke hain.")
+            
+        return data
+
+class RiderDocumentUploadSerializer(serializers.ModelSerializer):
+    """
+    Rider se document upload karwane ke liye (Input).
+    """
+    class Meta:
+        model = RiderDocument
+        fields = [
+            'document_type', 
+            'document_file' # Yeh file upload field hai
+        ]
+
+    def validate(self, data):
+        user = self.context['request'].user
+        
+        # 1. Application dhoondein
+        try:
+            application = RiderApplication.objects.get(user=user)
+        except RiderApplication.DoesNotExist:
+            raise ValidationError("Aapne abhi tak application create nahi ki hai.")
+            
+        # 2. Status check karein
+        if application.status != RiderApplication.ApplicationStatus.PENDING:
+            raise ValidationError(f"Aapki application '{application.status}' hai. Aap ab documents upload nahi kar sakte.")
+            
+        # 3. Check karein ki yeh document pehle se upload toh nahi
+        doc_type = data.get('document_type')
+        if RiderDocument.objects.filter(application=application, document_type=doc_type).exists():
+            raise ValidationError(f"Aap pehle hi '{doc_type}' upload kar chuke hain.")
+            
+        # View mein istemaal ke liye application ko context mein save karein
+        self.context['application'] = application
+        return data
+        
+    def create(self, validated_data):
+        # View se 'application' object lein
+        application = self.context['application']
+        
+        # Naya document banayein
+        document = RiderDocument.objects.create(
+            application=application,
+            document_type=validated_data.get('document_type'),
+            document_file=validated_data.get('document_file')
+        )
+        return document

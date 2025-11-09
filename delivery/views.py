@@ -1,8 +1,9 @@
+# delivery/views.py
 from django.db import transaction
 from django.utils import timezone
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.geos import Point
-from rest_framework import generics, status
+from rest_framework import generics, status, mixins # <-- 'mixins' add karein
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
@@ -12,10 +13,13 @@ from decimal import Decimal
 from datetime import timedelta
 from django.contrib.gis.measure import D
 from django.conf import settings
+from rest_framework.exceptions import NotFound # <-- Naya Import
+from rest_framework.parsers import MultiPartParser, FormParser # <-- Naya Import
 
 # Model Imports
 from orders.models import Order, Payment
 from .models import RiderProfile, Delivery, RiderEarning, RiderCashDeposit
+from .models import RiderApplication, RiderDocument # <-- NAYE MODELS
 
 # Serializer Imports
 from .serializers import (
@@ -26,14 +30,17 @@ from .serializers import (
     DeliveryUpdateSerializer,
     StaffOrderStatusUpdateSerializer,
     RiderEarningSerializer,
-    RiderCashDepositSerializer
+    RiderCashDepositSerializer,
+    RiderApplicationSerializer,           # <-- NAYA
+    RiderApplicationCreateSerializer,   # <-- NAYA
+    RiderDocumentUploadSerializer       # <-- NAYA
 )
 from orders.serializers import OrderDetailSerializer
 
 # Permission Imports
 from accounts.permissions import IsRider, IsStoreStaff
 
-# Naya Helper Function import
+# Helper Function import
 from .utils import notify_nearby_riders
 
 
@@ -346,3 +353,67 @@ class RiderCashDepositView(generics.ListCreateAPIView):
             rider=self.request.user.rider_profile,
             status=RiderCashDeposit.DepositStatus.PENDING
         )
+
+
+
+class RiderApplicationView(mixins.RetrieveModelMixin,
+                           mixins.CreateModelMixin,
+                           generics.GenericAPIView):
+    """
+    API: GET, POST /api/delivery/apply/
+    GET: User ki current application ka status dikhata hai.
+    POST: Rider banne ke liye ek nayi application submit karta hai.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return RiderApplicationCreateSerializer # Input ke liye
+        return RiderApplicationSerializer # Output ke liye
+
+    def get_object(self):
+        # GET request ke liye
+        if hasattr(self.request.user, 'rider_profile'):
+            raise NotFound("Aap pehle se hi ek registered rider hain.")
+        
+        try:
+            # User ki application dhoondein
+            return RiderApplication.objects.prefetch_related('documents').get(user=self.request.user)
+        except RiderApplication.DoesNotExist:
+            raise NotFound("Aapne abhi tak application submit nahi ki hai.")
+    
+    def get(self, request, *args, **kwargs):
+        """GET request ko handle karta hai (Status check)"""
+        return self.retrieve(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        """POST request ko handle karta hai (Nayi application)"""
+        return self.create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        # Application create karte waqt user aur default status set karein
+        serializer.save(
+            user=self.request.user,
+            status=RiderApplication.ApplicationStatus.PENDING
+        )
+
+class RiderDocumentUploadView(generics.CreateAPIView):
+    """
+    API: POST /api/delivery/apply/upload-document/
+    Ek maujooda 'PENDING' application ke liye document upload karta hai.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = RiderDocumentUploadSerializer
+    # File upload ke liye yeh parser zaroori hain
+    parser_classes = [MultiPartParser, FormParser]
+
+    def create(self, request, *args, **kwargs):
+        # Check karein ki user pehle se rider toh nahi hai
+        if hasattr(request.user, 'rider_profile'):
+            return Response(
+                {"error": "Aap pehle se hi ek registered rider hain."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Baaki validation (application hai ya nahi, etc.) serializer karega
+        return super().create(request, *args, **kwargs)

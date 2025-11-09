@@ -1,6 +1,3 @@
-from django.db import models
-
-# Create your models here.
 # wms/models.py
 from django.db import models
 from django.conf import settings
@@ -33,9 +30,6 @@ class WmsStock(TimestampedModel): # TimestampedModel se inherit karein
     Yeh batata hai ki KIS LOCATION par KIS ITEM ka kitna stock hai.
     Yeh granular stock level hai.
     """
-    # Design doc mein 'variant' tha, lekin 'inventory_summary' se
-    # variant aur store dono mil jaate hain. Hum 'inventory_summary'
-    # ko main link banayenge.
     inventory_summary = models.ForeignKey(
         StoreInventory, 
         on_delete=models.CASCADE,
@@ -45,12 +39,7 @@ class WmsStock(TimestampedModel): # TimestampedModel se inherit karein
     location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='stock_items')
     quantity = models.PositiveIntegerField(default=0)
 
-    # variant aur store ko denormalize kar sakte hain (optional, par faydemand)
-    # variant = models.ForeignKey(ProductVariant, on_delete=models.CASCADE)
-    # store = models.ForeignKey(Store, on_delete=models.CASCADE)
-
     class Meta:
-        # Ek location par ek inventory item ek hi baar aa sakta hai
         unique_together = ('inventory_summary', 'location')
         ordering = ['location__code']
 
@@ -65,11 +54,9 @@ class PickTask(TimestampedModel): # TimestampedModel se inherit karein
         PENDING = 'PENDING', 'Pending'
         COMPLETED = 'COMPLETED', 'Completed'
         CANCELLED = 'CANCELLED', 'Cancelled'
+        ISSUE = 'ISSUE', 'Issue Reported' # <-- NAYA STATUS
 
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='pick_tasks')
-
-    # Hum WmsStock se link kar sakte hain, ya location/variant se
-    # Design doc ke hisaab se location/variant se karte hain:
     location = models.ForeignKey(
         Location, 
         on_delete=models.PROTECT,
@@ -80,7 +67,6 @@ class PickTask(TimestampedModel): # TimestampedModel se inherit karein
         on_delete=models.PROTECT,
         help_text="Kaun sa item uthana hai"
     )
-
     quantity_to_pick = models.PositiveIntegerField()
 
     status = models.CharField(
@@ -99,6 +85,14 @@ class PickTask(TimestampedModel): # TimestampedModel se inherit karein
         help_text="Kaun sa picker yeh kaam karega (StoreStaff user)"
     )
     completed_at = models.DateTimeField(null=True, blank=True)
+
+    # --- NAYA FIELD ---
+    picker_notes = models.TextField(
+        blank=True, 
+        null=True,
+        help_text="Picker dwara report ki gayi issue (agar koi hai)"
+    )
+    # --- END NAYA FIELD ---
 
     class Meta:
         ordering = ['created_at']
@@ -123,7 +117,6 @@ def update_inventory_summary(inventory_summary_id):
             total=Sum('quantity')
         )['total'] or 0
 
-        # StoreInventory ko update karein
         inv_summary.stock_quantity = total_qty
         inv_summary.save(update_fields=['stock_quantity'])
 

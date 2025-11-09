@@ -22,6 +22,14 @@ class RiderProfile(TimestampedModel):
         on_delete=models.CASCADE,
         related_name='rider_profile',
     )
+
+    application = models.OneToOneField(
+        'RiderApplication',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='profile'
+    )
     
     current_location = gis_models.PointField(
         srid=4326, 
@@ -435,3 +443,89 @@ class RiderCashDeposit(TimestampedModel):
 
     def __str__(self):
         return f"Deposit of {self.amount} by {self.rider.user.username} ({self.status})"
+    
+
+
+class RiderApplication(TimestampedModel):
+    """
+    Ek rider ki application ko track karta hai.
+    """
+    class ApplicationStatus(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'   # Applicant ne submit kiya
+        APPROVED = 'APPROVED', 'Approved' # Admin ne approve kiya
+        REJECTED = 'REJECTED', 'Rejected' # Admin ne reject kiya
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='rider_application',
+        help_text="Kaun sa user apply kar raha hai"
+    )
+    
+    status = models.CharField(
+        max_length=20,
+        choices=ApplicationStatus.choices,
+        default=ApplicationStatus.PENDING,
+        db_index=True
+    )
+    
+    vehicle_details = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Gaadi ka number (e.g., KA 01 AB 1234)"
+    )
+
+    admin_notes = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Admin ke notes (e.g., 'Rejected due to invalid license')"
+    )
+
+    class Meta:
+        verbose_name = "Rider Application"
+        verbose_name_plural = "Rider Applications"
+
+    def __str__(self):
+        return f"Application for {self.user.username} ({self.status})"
+
+class RiderDocument(TimestampedModel):
+    """
+    Rider dwara upload kiye gaye documents (e.g., License, Aadhaar).
+    """
+    class DocumentType(models.TextChoices):
+        DRIVING_LICENSE = 'DRIVING_LICENSE', 'Driving License'
+        AADHAAR_CARD = 'AADHAAR_CARD', 'Aadhaar Card'
+        VEHICLE_RC = 'VEHICLE_RC', 'Vehicle RC Book'
+        OTHER = 'OTHER', 'Other'
+
+    application = models.ForeignKey(
+        RiderApplication,
+        on_delete=models.CASCADE,
+        related_name='documents',
+        help_text="Yeh document kis application ka hissa hai"
+    )
+    
+    document_type = models.CharField(
+        max_length=30,
+        choices=DocumentType.choices
+    )
+    
+    # Hum 'FileField' ka istemaal karenge taaki PDF/Image dono aa sakein
+    document_file = models.FileField(
+        upload_to='rider_documents/',
+        help_text="Document ki scan copy (Image/PDF)"
+    )
+
+    is_verified = models.BooleanField(
+        default=False,
+        help_text="Kya admin ne is document ko verify kar liya hai?"
+    )
+
+    class Meta:
+        verbose_name = "Rider Document"
+        verbose_name_plural = "Rider Documents"
+        # Ek application mein ek type ka document ek hi baar
+        unique_together = ('application', 'document_type')
+
+    def __str__(self):
+        return f"{self.get_document_type_display()} for {self.application.user.username}"
