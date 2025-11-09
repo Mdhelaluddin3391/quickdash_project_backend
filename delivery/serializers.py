@@ -162,5 +162,6 @@ class RiderEarningSerializer(serializers.ModelSerializer):
             'base_fee',
             'tip',
             'total_earning',
+            'status',
             'created_at'
         ]

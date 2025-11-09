@@ -7,12 +7,32 @@ from django.utils import timezone # <-- NAYA IMPORT
 class CategorySerializer(serializers.ModelSerializer):
     """
     Category aur sub-category ko display karne ke liye serializer.
+    (UPDATED: Ab nested 'children' ko support karta hai)
     """
+    # children field, CategorySerializer ko hi recursively (baar-baar) call karega
+    children = serializers.SerializerMethodField()
+
     class Meta:
         model = Category
-        fields = ['id', 'name', 'slug', 'icon', 'parent']
-        read_only_fields = ['id', 'slug', 'parent']
+        # 'children' ko fields mein add karein
+        fields = ['id', 'name', 'slug', 'icon', 'parent', 'children']
+        read_only_fields = ['id', 'slug', 'parent', 'children']
 
+    def get_children(self, obj):
+        """
+        Sirf active children ko recursively serialize karta hai.
+        """
+        # 'obj' yahaan parent category hai (e.g., "Fruits & Veg")
+        # Hum uske active children (e.g., "Fresh Fruits") dhoondh rahe hain
+        active_children = obj.children.filter(is_active=True)
+        
+        if active_children.exists():
+            # Hum context pass karte hain (request ke liye, agar images hain)
+            # Taki children ke icons ka URL bhi sahi bane
+            serializer = CategorySerializer(active_children, many=True, context=self.context)
+            return serializer.data
+        
+        return [] # Agar children nahi hain toh empty list
 
 class StoreSerializer(serializers.ModelSerializer):
     """

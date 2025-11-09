@@ -8,7 +8,8 @@ from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-
+from django.db.models import F
+from orders.models import Order, Payment
 from .models import RiderProfile, Delivery
 from .serializers import (
     RiderProfileDetailSerializer,
@@ -19,6 +20,10 @@ from .serializers import (
     StaffOrderStatusUpdateSerializer,
     RiderEarningSerializer
 )
+from django.db.models import Sum, Count, Q # <-- Q import kiya (Task 1 se)
+from decimal import Decimal # <-- Decimal import kiya (Task 1 se)
+from django.db.models import Sum, Count, Q # <-- 'Q' import karein
+from decimal import Decimal # <-- 'Decimal' import karein (agar nahi hai toh)
 from .models import RiderProfile, Delivery, RiderEarning # <-- NAYA IMPORT
 from django.db.models import Sum, Count # <-- NAYA IMPORT
 from django.db.models.functions import TruncDay # <-- NAYA IMPORT
@@ -258,8 +263,9 @@ class UpdateDeliveryStatusView(generics.GenericAPIView):
         new_status = serializer.validated_data['status']
         
         try:
+            # Hum order ko bhi prefetch kar rahe hain
             delivery = get_object_or_404(
-                Delivery, 
+                Delivery.objects.select_related('order'), 
                 id=delivery_id, 
                 rider=rider_profile
             )
@@ -268,30 +274,75 @@ class UpdateDeliveryStatusView(generics.GenericAPIView):
             
             if current_status == Delivery.DeliveryStatus.ACCEPTED and \
                new_status == Delivery.DeliveryStatus.AT_STORE:
+                
                 delivery.at_store_at = timezone.now()
+                delivery.status = new_status
+                delivery.save() # Earning logic ke liye save() call zaroori hai
             
             elif current_status == Delivery.DeliveryStatus.AT_STORE and \
                  new_status == Delivery.DeliveryStatus.PICKED_UP:
+                
                 delivery.picked_up_at = timezone.now()
+                delivery.status = new_status
+                delivery.save()
             
             elif current_status == Delivery.DeliveryStatus.PICKED_UP and \
                  new_status == Delivery.DeliveryStatus.DELIVERED:
-                delivery.delivered_at = timezone.now()
+                
+                # --- NAYA COD LOGIC ---
+                # Hum transaction ka istemaal karenge
+                with transaction.atomic():
+                    # 1. Delivery object ko update karein
+                    delivery.delivered_at = timezone.now()
+                    delivery.status = new_status
+                    
+                    order = delivery.order
+                    
+                    # 2. Check karein ki yeh unpaid COD order hai ya nahi
+                    if order.payment_status == Order.PaymentStatus.PENDING:
+                        
+                        # Hum lock laga kar payment object nikaalenge
+                        payment = order.payments.select_for_update().first()
+                        
+                        if payment and payment.payment_method == Payment.PaymentMethod.COD:
+                            
+                            # 3. Payment ko SUCCESSFUL mark karein
+                            payment.status = Order.PaymentStatus.SUCCESSFUL
+                            payment.save(update_fields=['status'])
+                            
+                            # 4. Order ko SUCCESSFUL mark karein
+                            # (hum order par lock nahi laga rahe kyunki payment par hai)
+                            order.payment_status = Order.PaymentStatus.SUCCESSFUL
+                            order.save(update_fields=['payment_status'])
+                            
+                            # 5. Rider ka cash_on_hand update karein
+                            # (RiderProfile object pehle hi 'rider_profile' variable mein hai)
+                            rider_profile.cash_on_hand = F('cash_on_hand') + order.final_total
+                            rider_profile.save(update_fields=['cash_on_hand'])
+                            
+                            print(f"COD Payment for Order {order.order_id} (₹{order.final_total}) confirmed.")
+                            print(f"Rider {rider_profile.user.username} cash on hand updated.")
+
+                    # 6. Ab delivery.save() call karein
+                    # Yeh `save()` method trigger hoga, jo automatically `RiderEarning` create karega
+                    delivery.save()
+                # --- END NAYA COD LOGIC ---
             
             else:
                 return Response(
                     {"error": f"Invalid status transition from '{current_status}' to '{new_status}'."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-
-            delivery.status = new_status
-            delivery.save()
             
+            # (Puraana delivery.save() call ab transaction ke andar hai)
+
             serializer = RiderDeliverySerializer(delivery)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 
 class CurrentDeliveryDetailView(generics.RetrieveAPIView):
     """
@@ -421,8 +472,7 @@ class StaffUpdateOrderStatusView(generics.GenericAPIView):
 
                 if not nearby_available_riders.exists():
                     print(f"Order {order.order_id} READY, lekin koi nearby rider available nahi hai.")
-                    # TODO: Yahaan aap ek task schedule kar sakte hain jo 5 min baad
-                    # dobara riders dhoonde (future optimization)
+                
                 
                 else:
                     channel_layer = get_channel_layer()
@@ -449,3 +499,83 @@ class StaffUpdateOrderStatusView(generics.GenericAPIView):
                 OrderDetailSerializer(order, context={'request': request}).data,
                 status=status.HTTP_200_OK
             )
+
+
+
+class RiderEarningsView(generics.GenericAPIView):
+    """
+    API: GET /api/delivery/earnings/
+    Rider ki total kamai aur daily breakdown dikhata hai.
+    Query Params:
+    - ?filter=today (Sirf aaj ki kamai)
+    - ?filter=weekly (Pichle 7 din ki kamai)
+    - (default) Poori list (paginated)
+    """
+    permission_classes = [IsAuthenticated, IsRider]
+    serializer_class = RiderEarningSerializer
+
+    def get(self, request, *args, **kwargs):
+        rider_profile = request.user.rider_profile
+        queryset = RiderEarning.objects.filter(rider=rider_profile)
+        
+        filter_param = request.query_params.get('filter')
+        today = timezone.now().date()
+        
+        if filter_param == 'today':
+            queryset = queryset.filter(created_at__date=today)
+        elif filter_param == 'weekly':
+            week_ago = today - timedelta(days=7)
+            queryset = queryset.filter(created_at__date__gte=week_ago)
+        
+        # --- NAYA AGGREGATION LOGIC ---
+        
+        # Kul kamai (poore filtered queryset par)
+        total_stats = queryset.aggregate(
+            total_deliveries=Count('id'),
+            total_earnings=Sum('total_earning'),
+            total_tips=Sum('tip')
+        )
+        
+        # Kul kitna paisa milna baaki hai (sirf UNPAID earnings)
+        # Yeh filter_param se affect nahi hona chahiye, isliye poore queryset par
+        unpaid_stats = RiderEarning.objects.filter(
+            rider=rider_profile, 
+            status=RiderEarning.EarningStatus.UNPAID
+        ).aggregate(
+            total_unpaid=Sum('total_earning'),
+            unpaid_deliveries_count=Count('id')
+        )
+
+        # total_stats dictionary ko update karein
+        total_stats.update({
+            'total_unpaid': unpaid_stats.get('total_unpaid') or Decimal('0.00'),
+            'unpaid_deliveries_count': unpaid_stats.get('unpaid_deliveries_count') or 0
+        })
+        # --- END NAYA LOGIC ---
+
+        # Daily breakdown (filtered queryset par)
+        daily_summary = queryset.annotate(
+            day=TruncDay('created_at')
+        ).values('day').annotate(
+            deliveries=Count('id'),
+            earnings=Sum('total_earning')
+        ).order_by('-day')
+        
+        # Individual earning list (paginated, filtered queryset par)
+        page = self.paginate_queryset(queryset.order_by('-created_at'))
+        
+        # Paginated response
+        serializer = self.get_serializer(page, many=True)
+        
+        # get_paginated_response ek poora Response object return karta hai
+        # Humein uske data mein total_stats add karna hai
+        paginated_response_data = self.get_paginated_response(serializer.data).data
+        
+        # Naya response data banayein
+        response_data = {
+            'total_stats': total_stats,
+            'daily_summary': list(daily_summary),
+            'recent_earnings_list': paginated_response_data # Yeh 'results', 'next', 'previous' sab le aayega
+        }
+        
+        return Response(response_data)

@@ -8,7 +8,7 @@ from orders.models import Order
 from accounts.tasks import send_fcm_push_notification_task
 from decimal import Decimal # <-- Import pehle se hai, acchi baat hai
 from django.core.validators import MinValueValidator, MaxValueValidator
-
+from django.utils import timezone # <-- YEH IMPORT ADD KAREIN
 
 
 
@@ -53,6 +53,13 @@ class RiderProfile(TimestampedModel):
         null=True, 
         blank=True, 
         default=5.0
+    )
+
+    cash_on_hand = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0.00,
+        help_text="Rider ke paas kitna COD cash hai jo usse company ko dena hai"
     )
 
     def __str__(self):
@@ -235,6 +242,11 @@ class RiderEarning(TimestampedModel):
     """
     Har successful delivery ke liye rider ki kamai track karta hai.
     """
+    class EarningStatus(models.TextChoices):
+        UNPAID = 'UNPAID', 'Unpaid'
+        PAID = 'PAID', 'Paid'
+
+
     rider = models.ForeignKey(
         RiderProfile,
         on_delete=models.SET_NULL, # Rider delete ho jaaye toh bhi record rahe
@@ -270,6 +282,14 @@ class RiderEarning(TimestampedModel):
         help_text="Kul kamai (Base Fee + Tip)"
     )
 
+    status = models.CharField(
+        max_length=10,
+        choices=EarningStatus.choices,
+        default=EarningStatus.UNPAID,
+        db_index=True,
+        help_text="Kya is kamai ka payment ho chuka hai?"
+    )
+
     class Meta:
         verbose_name = "Rider Earning"
         verbose_name_plural = "Rider Earnings"
@@ -279,3 +299,58 @@ class RiderEarning(TimestampedModel):
         rider_id = self.rider.id if self.rider else "N/A"
         return f"Earning {self.total_earning} for Rider {rider_id} (Order {self.order_id_str})"
 # --- END NAYA MODEL ---
+
+
+
+class RiderPayout(TimestampedModel):
+    """
+    Rider ko kiye gaye payments ka record (e.g., weekly bank transfer).
+    """
+    class PayoutPaymentMethod(models.TextChoices):
+        BANK_TRANSFER = 'BANK_TRANSFER', 'Bank Transfer'
+        CASH_ADJUSTMENT = 'CASH_ADJUSTMENT', 'Cash Adjustment'
+        OTHER = 'OTHER', 'Other'
+
+    rider = models.ForeignKey(
+        RiderProfile,
+        on_delete=models.PROTECT, # Payout record delete nahi hona chahiye agar rider hai
+        related_name='payouts'
+    )
+    
+    amount_paid = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text="Rider ko kitna amount pay kiya gaya"
+    )
+    
+    payment_date = models.DateTimeField(
+        default=timezone.now,
+        help_text="Payment kab process hua"
+    )
+    
+    payment_method = models.CharField(
+        max_length=20,
+        choices=PayoutPaymentMethod.choices,
+        default=PayoutPaymentMethod.BANK_TRANSFER
+    )
+    
+    notes = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Admin ke liye notes (e.g., Transaction ID)"
+    )
+    
+    # Yeh M2M field 'RiderEarning' ko is Payout se jodega
+    earnings_covered = models.ManyToManyField(
+        RiderEarning,
+        related_name='payout_records',
+        help_text="Is payout mein kaun si earnings shaamil hain"
+    )
+
+    class Meta:
+        verbose_name = "Rider Payout"
+        verbose_name_plural = "Rider Payouts"
+        ordering = ['-payment_date']
+
+    def __str__(self):
+        return f"Payout {self.amount_paid} to {self.rider.user.username} on {self.payment_date.date()}"

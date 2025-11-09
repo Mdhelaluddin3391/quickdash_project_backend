@@ -21,12 +21,20 @@ from .permissions import HasPurchasedProduct
 class CategoryListView(generics.ListAPIView):
     """
     API endpoint: /api/store/categories/
-    Sabhi active categories aur sub-categories ki list return karta hai.
+    Sirf top-level (parent) active categories ki list return karta hai.
+    Sub-categories 'children' field ke andar nested hongi (Serializer handle karega).
     """
     permission_classes = [AllowAny]
-    queryset = Category.objects.filter(is_active=True)
+    
+    # Hum queryset ko update kar rahe hain taaki sirf parent=None waale items aaye
+    queryset = Category.objects.filter(
+        is_active=True, 
+        parent=None
+    ).prefetch_related(
+        'children' # Performance ke liye children ko pehle hi fetch kar lein
+    )
+    
     serializer_class = CategorySerializer
-    # TODO: Future mein, sirf parent categories (parent=None) dikha sakte hain
 
 
 class StoreListView(generics.ListAPIView):
