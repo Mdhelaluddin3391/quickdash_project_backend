@@ -1,3 +1,5 @@
+# quickdash_project_backend/delivery/views.py
+
 from django.db import transaction
 from django.utils import timezone
 from django.contrib.gis.db.models.functions import Distance
@@ -8,9 +10,18 @@ from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-from django.db.models import F
+from django.db.models import F, Sum, Count, Q
+from django.db.models.functions import TruncDay
+from decimal import Decimal
+from datetime import timedelta
+from django.contrib.gis.measure import D
+from django.conf import settings # <-- Hardcoded distance ke liye import
+
+# Model Imports
 from orders.models import Order, Payment
-from .models import RiderProfile, Delivery
+from .models import RiderProfile, Delivery, RiderEarning, RiderCashDeposit
+
+# Serializer Imports
 from .serializers import (
     RiderProfileDetailSerializer,
     RiderProfileUpdateSerializer,
@@ -21,92 +32,12 @@ from .serializers import (
     RiderEarningSerializer,
     RiderCashDepositSerializer
 )
-from django.db.models import Sum, Count, Q # <-- Q import kiya (Task 1 se)
-from decimal import Decimal # <-- Decimal import kiya (Task 1 se)
-from django.db.models import Sum, Count, Q # <-- 'Q' import karein
-from decimal import Decimal # <-- 'Decimal' import karein (agar nahi hai toh)
-from .models import RiderProfile, Delivery, RiderEarning # <-- NAYA IMPORT
-from django.db.models import Sum, Count # <-- NAYA IMPORT
-from django.db.models.functions import TruncDay # <-- NAYA IMPORT
-from datetime import timedelta # <-- NAYA IMPORT
-from django.contrib.gis.measure import D  # <-- YEH NAYI LINE ADD KAREIN
-from rest_framework import generics, status
-from orders.models import Order
 from orders.serializers import OrderDetailSerializer
+
+# Permission Imports
 from accounts.permissions import IsRider, IsStoreStaff
-from django.db.models import Sum, Count, Q, F # <-- 'F' import karein (agar pehle se nahi hai)
 
-
-
-
-
-
-class RiderEarningsView(generics.GenericAPIView):
-    """
-    API: GET /api/delivery/earnings/
-    Rider ki total kamai aur daily breakdown dikhata hai.
-    Query Params:
-    - ?filter=today (Sirf aaj ki kamai)
-    - ?filter=weekly (Pichle 7 din ki kamai)
-    - (default) Poori list (paginated)
-    """
-    permission_classes = [IsAuthenticated, IsRider]
-    serializer_class = RiderEarningSerializer
-
-    def get(self, request, *args, **kwargs):
-        rider_profile = request.user.rider_profile
-        queryset = RiderEarning.objects.filter(rider=rider_profile)
-        
-        filter_param = request.query_params.get('filter')
-        today = timezone.now().date()
-        
-        if filter_param == 'today':
-            queryset = queryset.filter(created_at__date=today)
-        elif filter_param == 'weekly':
-            week_ago = today - timedelta(days=7)
-            queryset = queryset.filter(created_at__date__gte=week_ago)
-        
-        # Kul kamai calculate karein
-        total_stats = queryset.aggregate(
-            total_deliveries=Count('id'),
-            total_earnings=Sum('total_earning'),
-            total_tips=Sum('tip')
-        )
-        
-        # Daily breakdown (filtered queryset par)
-        daily_summary = queryset.annotate(
-            day=TruncDay('created_at')
-        ).values('day').annotate(
-            deliveries=Count('id'),
-            earnings=Sum('total_earning')
-        ).order_by('-day')
-        
-        # Individual earning list (paginated)
-        page = self.paginate_queryset(queryset.order_by('-created_at'))
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            # Paginated response se data nikaalein (next, previous, count, results)
-            paginated_data = serializer.data
-            
-            response_data = {
-                'total_stats': total_stats,
-                'daily_summary': list(daily_summary),
-                'recent_earnings_list': paginated_data # 'results' key paginated response mein hoti hai
-            }
-            # get_paginated_response poora response object return karta hai
-            return self.get_paginated_response(response_data)
-
-        # Agar pagination nahi hai (ya default settings mein nahi hai)
-        serializer = self.get_serializer(queryset, many=True)
-        return Response({
-            'total_stats': total_stats,
-            'daily_summary': list(daily_summary),
-            'recent_earnings_list': serializer.data
-        })
-# --- END NAYA VIEW ---
-
-
-
+# --- PEHLA DUPLICATE RiderEarningsView (LINES 62-101) HATA DIYA GAYA HAI ---
 
 class RiderProfileView(generics.RetrieveUpdateAPIView):
     """
@@ -458,13 +389,13 @@ class StaffUpdateOrderStatusView(generics.GenericAPIView):
                 if not store_location:
                     raise Exception("Store ki location set nahi hai.")
 
-                # Step 1: Store ke 10km ke daayre mein available riders dhoondein
+                # Step 1: Store ke daayre mein available riders dhoondein
                 nearby_available_riders = RiderProfile.objects.filter(
                     is_online=True,
                     on_delivery=False,
                     current_location__isnull=False,
-                    # D(km=10) = 10 kilometer
-                    current_location__distance_lte=(store_location, D(km=10)) 
+                    # FIX: Hardcoded 10km ko settings se liya
+                    current_location__distance_lte=(store_location, D(km=settings.RIDER_SEARCH_RADIUS_KM)) 
                 ).annotate(
                     # Store se distance calculate karein
                     distance_to_store=Distance('current_location', store_location)
@@ -502,8 +433,7 @@ class StaffUpdateOrderStatusView(generics.GenericAPIView):
                 status=status.HTTP_200_OK
             )
 
-
-
+        # --- YEH ASLI (SAHI) RiderEarningsView HAI ---
 class RiderEarningsView(generics.GenericAPIView):
     """
     API: GET /api/delivery/earnings/

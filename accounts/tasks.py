@@ -1,4 +1,4 @@
-# accounts/tasks.py
+# quickdash_project_backend/accounts/tasks.py
 
 from celery import shared_task
 import time
@@ -31,7 +31,8 @@ def send_otp_sms_task(phone_number, otp):
     # Check karein ki settings mein keys hain ya nahi
     if not all([settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN, settings.TWILIO_PHONE_NUMBER]):
         print(f"CELERY TASK (WARNING): Twilio settings missing. Falling back to console.")
-        print(f"CELERY TASK (Mock SMS): OTP for {phone_number} is {otp}")
+        # FIX: Sensitive OTP ko log se hata diya
+        print(f"CELERY TASK (Mock SMS): OTP generated for {phone_number} (Dev only)")
         return "Twilio settings missing. Mock SMS printed."
 
     try:

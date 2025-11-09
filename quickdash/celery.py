@@ -1,7 +1,8 @@
+# quickdash_project_backend/quickdash/celery.py
+
 import os
 from celery import Celery
-from celery.schedules import crontab  # <-- YEH LINE ADD KAREIN
-from celery.schedules import crontab
+from celery.schedules import crontab  # <-- Sirf ek import
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'quickdash.settings')
 

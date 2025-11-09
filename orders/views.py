@@ -1,7 +1,5 @@
-# orders/views.py (Fully Updated and Cleaned)
-
 from django.db import transaction
-from django.db.models import F
+from django.db.models import F, Avg
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny 
@@ -9,33 +7,27 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-from delivery.serializers import RiderDeliverySerializer 
 from decimal import Decimal
 from django.utils import timezone
 from django.conf import settings
 from django.contrib.gis.measure import Distance 
 import razorpay 
-from django.conf import settings
-import razorpay
+import json         
+import hmac         
+import hashlib      
+from rest_framework.views import APIView 
+
+# Task Imports
 from .tasks import process_razorpay_refund_task
+
 # Model Imports
 from .models import Order, OrderItem, Payment, Address, Coupon
 from cart.models import Cart
 from inventory.models import StoreInventory
 from delivery.models import Delivery 
-import razorpay
-import json         
-import hmac         
-import hashlib      
-from rest_framework.views import APIView 
-# --- NAYE IMPORTS ---
-from django.db.models import Avg # Rider ki average rating ke liye
-from decimal import Decimal # Average rating ko save karne ke liye
-# --- END NAYE IMPORTS ---
-# Model Imports
-from .models import Order, OrderItem, Payment, Address, Coupon
-# ... (baaki imports)
+
 # Serializer Imports
+from delivery.serializers import RiderDeliverySerializer 
 from .serializers import (
     CheckoutSerializer, 
     OrderDetailSerializer, 

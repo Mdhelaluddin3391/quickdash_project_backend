@@ -1,31 +1,31 @@
+# quickdash_project_backend/accounts/views.py
+
 import random
 from rest_framework import generics, status, permissions
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import User, Address, CustomerProfile
-from .serializers import OTPSerializer, OTPVerifySerializer, AddressSerializer, CustomerProfileSerializer 
-from .permissions import IsCustomer 
 from django.core.cache import cache
-from .tasks import send_otp_sms_task
-from .models import User, Address, CustomerProfile
-from .serializers import (
-    OTPSerializer, OTPVerifySerializer, AddressSerializer, 
-    CustomerProfileSerializer, StaffLoginSerializer  # <--- Isse yahaan add karein
-)
-from .serializers import (
-    OTPSerializer, OTPVerifySerializer, AddressSerializer, 
-    CustomerProfileSerializer, StaffLoginSerializer, FCMTokenSerializer # <-- Naya import
-)
-import random # <-- Import check karein (pehle se hona chahiye)
-from django.core.cache import cache # <-- Import check karein (pehle se hona chahiye)
-from .tasks import send_otp_sms_task # <-- Import check karein (pehle se hona chahiye)
 
-# ... (Saare existing imports)
+# Model Imports
+from .models import User, Address, CustomerProfile
+
+# Serializer Imports
 from .serializers import (
-    # ... (Aapke baaki ke serializers)
-    StaffPasswordResetRequestSerializer, # <-- Naya import
-    StaffPasswordResetConfirmSerializer  # <-- Naya import
+    OTPSerializer, 
+    OTPVerifySerializer, 
+    AddressSerializer, 
+    CustomerProfileSerializer,
+    StaffLoginSerializer,
+    FCMTokenSerializer,
+    StaffPasswordResetRequestSerializer,
+    StaffPasswordResetConfirmSerializer
 )
+
+# Permission Imports
+from .permissions import IsCustomer 
+
+# Task Imports
+from .tasks import send_otp_sms_task
 
 
 def get_tokens_for_user(user):

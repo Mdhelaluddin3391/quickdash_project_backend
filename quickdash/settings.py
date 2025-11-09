@@ -22,7 +22,9 @@ import platform
 import os
 from decouple import config
 import firebase_admin # <-- YEH LINE ADD KAREIN
-from firebase_admin import credentials #
+from firebase_admin import credentials 
+
+
 
 load_dotenv()
 
@@ -245,6 +247,7 @@ MAX_DELIVERY_FEE = 100.00 # (Maximum fee)
 TAX_RATE = 0.05           # (e.g., 5% GST)
 ORDER_CANCELLATION_WINDOW = 300
 RIDER_BASE_DELIVERY_FEE = 30.00
+RIDER_SEARCH_RADIUS_KM = 5
 
 """
 

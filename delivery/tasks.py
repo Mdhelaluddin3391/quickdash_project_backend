@@ -1,4 +1,5 @@
-# delivery/tasks.py
+# quickdash_project_backend/delivery/tasks.py
+
 from celery import shared_task
 from django.utils import timezone
 from datetime import timedelta
@@ -6,6 +7,7 @@ from django.contrib.gis.measure import D
 from django.contrib.gis.db.models.functions import Distance
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+from django.conf import settings # <-- Naya import
 
 from .models import Delivery, RiderProfile
 from .serializers import RiderDeliverySerializer
@@ -42,12 +44,12 @@ def retry_unassigned_deliveries():
         if not store_location:
             continue
 
-        # Store ke 10km ke daayre mein available riders
+        # FIX: Hardcoded 10km ko settings se replace kiya
         nearby_available_riders = RiderProfile.objects.filter(
             is_online=True,
             on_delivery=False,
             current_location__isnull=False,
-            current_location__distance_lte=(store_location, D(km=10)) 
+            current_location__distance_lte=(store_location, D(km=settings.RIDER_SEARCH_RADIUS_KM)) 
         ).annotate(
             distance_to_store=Distance('current_location', store_location)
         ).order_by('distance_to_store')[:10]
@@ -77,3 +79,4 @@ def retry_unassigned_deliveries():
         delivery.save(update_fields=['updated_at'])
 
     return f"Retried {stuck_deliveries.count()} deliveries."
+}

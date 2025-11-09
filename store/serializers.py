@@ -1,8 +1,11 @@
+# quickdash_project_backend/store/serializers.py
+
 from rest_framework import serializers
 from .models import Category, Store, Product, ProductVariant
 from accounts.models import User
 from .models import Review
-from django.utils import timezone # <-- NAYA IMPORT
+from django.utils import timezone # <-- Import pehle se hai
+
 
 class CategorySerializer(serializers.ModelSerializer):
     """
@@ -71,8 +74,8 @@ class StoreSerializer(serializers.ModelSerializer):
             return True 
 
         try:
-            # Hum maante hain ki sabhi times server ke time (UTC) mein hain
-            current_time = timezone.now().time()
+            # FIX: Server ke UTC time ki jagah local time (Asia/Kolkata) ka istemaal
+            current_time = timezone.localtime(timezone.now()).time()
             
             opening = obj.opening_time
             closing = obj.closing_time
