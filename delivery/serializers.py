@@ -6,7 +6,7 @@ from accounts.serializers import AddressSerializer
 from store.serializers import StoreSerializer
 from django.contrib.gis.measure import Distance
 # delivery/serializers.py
-
+from .models import RiderProfile, Delivery, RiderEarning, RiderCashDeposit # <-- 'RiderCashDeposit' add karein
 from .models import RiderProfile, Delivery, RiderEarning # <-- 'RiderEarning' yahaan add karein
 
 
@@ -165,3 +165,63 @@ class RiderEarningSerializer(serializers.ModelSerializer):
             'status',
             'created_at'
         ]
+
+
+
+class RiderCashDepositSerializer(serializers.ModelSerializer):
+    """
+    Rider ko cash deposit request create karne (POST) aur
+    apni history dekhne (GET) ke liye.
+    """
+    
+    # Read-only fields jo GET request mein dikhenge
+    rider_name = serializers.CharField(source='rider.user.username', read_only=True)
+    status = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = RiderCashDeposit
+        fields = [
+            'id',
+            'rider_name',     # Read-only
+            'amount',         # Writable
+            'payment_method', # Writable
+            'transaction_id', # Writable
+            'notes',          # Writable
+            'status',         # Read-only
+            'admin_notes',    # Read-only (Admin notes dekhne ke liye)
+            'created_at',     # Read-only
+        ]
+        
+        # Yeh fields POST request mein read-only honge
+        read_only_fields = ['id', 'rider_name', 'status', 'admin_notes', 'created_at']
+
+    def validate_amount(self, value):
+        """
+        Check karein ki amount 0 se zyada ho aur rider ke
+        paas jitna cash hai, usse zyada na ho.
+        """
+        if value <= Decimal('0.00'):
+            raise serializers.ValidationError("Amount 0 se zyada hona chahiye.")
+        
+        rider = self.context['request'].user.rider_profile
+        if value > rider.cash_on_hand:
+            raise serializers.ValidationError(
+                f"Aap {value} deposit nahi kar sakte. "
+                f"Aapke paas sirf ₹{rider.cash_on_hand} cash hai."
+            )
+        return value
+
+    def validate_transaction_id(self, value):
+        """
+        Check karein ki UPI/Bank transfer ke liye Transaction ID zaroori hai.
+        """
+        # 'payment_method' ko initial_data se fetch karein (kyunki validate() mein nahi milta)
+        payment_method = self.initial_data.get('payment_method')
+        
+        if payment_method in [
+            RiderCashDeposit.DepositPaymentMethod.UPI, 
+            RiderCashDeposit.DepositPaymentMethod.BANK_TRANSFER
+        ] and not value:
+            raise serializers.ValidationError("UPI/Bank Transfer ke liye Transaction ID zaroori hai.")
+            
+        return value

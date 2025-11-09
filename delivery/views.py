@@ -18,7 +18,8 @@ from .serializers import (
     RiderDeliverySerializer,
     DeliveryUpdateSerializer,
     StaffOrderStatusUpdateSerializer,
-    RiderEarningSerializer
+    RiderEarningSerializer,
+    RiderCashDepositSerializer
 )
 from django.db.models import Sum, Count, Q # <-- Q import kiya (Task 1 se)
 from decimal import Decimal # <-- Decimal import kiya (Task 1 se)
@@ -33,6 +34,7 @@ from rest_framework import generics, status
 from orders.models import Order
 from orders.serializers import OrderDetailSerializer
 from accounts.permissions import IsRider, IsStoreStaff
+from django.db.models import Sum, Count, Q, F # <-- 'F' import karein (agar pehle se nahi hai)
 
 
 
@@ -516,30 +518,34 @@ class RiderEarningsView(generics.GenericAPIView):
 
     def get(self, request, *args, **kwargs):
         rider_profile = request.user.rider_profile
-        queryset = RiderEarning.objects.filter(rider=rider_profile)
+        # Base queryset (sirf is rider ke liye)
+        base_queryset = RiderEarning.objects.filter(rider=rider_profile)
         
         filter_param = request.query_params.get('filter')
         today = timezone.now().date()
         
+        # Filtered queryset (Jo list mein dikhega)
+        filtered_queryset = base_queryset
+        
         if filter_param == 'today':
-            queryset = queryset.filter(created_at__date=today)
+            filtered_queryset = base_queryset.filter(created_at__date=today)
         elif filter_param == 'weekly':
             week_ago = today - timedelta(days=7)
-            queryset = queryset.filter(created_at__date__gte=week_ago)
+            filtered_queryset = base_queryset.filter(created_at__date__gte=week_ago)
         
-        # --- NAYA AGGREGATION LOGIC ---
         
-        # Kul kamai (poore filtered queryset par)
-        total_stats = queryset.aggregate(
+        # --- Aggregation Logic ---
+        
+        # Kul kamai (filtered queryset par)
+        total_stats = filtered_queryset.aggregate(
             total_deliveries=Count('id'),
             total_earnings=Sum('total_earning'),
             total_tips=Sum('tip')
         )
         
         # Kul kitna paisa milna baaki hai (sirf UNPAID earnings)
-        # Yeh filter_param se affect nahi hona chahiye, isliye poore queryset par
-        unpaid_stats = RiderEarning.objects.filter(
-            rider=rider_profile, 
+        # Yeh filter_param se affect nahi hona chahiye, isliye 'base_queryset' par
+        unpaid_stats = base_queryset.filter(
             status=RiderEarning.EarningStatus.UNPAID
         ).aggregate(
             total_unpaid=Sum('total_earning'),
@@ -549,12 +555,16 @@ class RiderEarningsView(generics.GenericAPIView):
         # total_stats dictionary ko update karein
         total_stats.update({
             'total_unpaid': unpaid_stats.get('total_unpaid') or Decimal('0.00'),
-            'unpaid_deliveries_count': unpaid_stats.get('unpaid_deliveries_count') or 0
+            'unpaid_deliveries_count': unpaid_stats.get('unpaid_deliveries_count') or 0,
+            # Jo values aggregate mein nahi aayi, unhe default 0 set karein
+            'total_deliveries': total_stats.get('total_deliveries') or 0,
+            'total_earnings': total_stats.get('total_earnings') or Decimal('0.00'),
+            'total_tips': total_stats.get('total_tips') or Decimal('0.00'),
         })
-        # --- END NAYA LOGIC ---
+        # --- END LOGIC ---
 
         # Daily breakdown (filtered queryset par)
-        daily_summary = queryset.annotate(
+        daily_summary = filtered_queryset.annotate(
             day=TruncDay('created_at')
         ).values('day').annotate(
             deliveries=Count('id'),
@@ -562,13 +572,11 @@ class RiderEarningsView(generics.GenericAPIView):
         ).order_by('-day')
         
         # Individual earning list (paginated, filtered queryset par)
-        page = self.paginate_queryset(queryset.order_by('-created_at'))
+        page = self.paginate_queryset(filtered_queryset.order_by('-created_at'))
         
         # Paginated response
         serializer = self.get_serializer(page, many=True)
         
-        # get_paginated_response ek poora Response object return karta hai
-        # Humein uske data mein total_stats add karna hai
         paginated_response_data = self.get_paginated_response(serializer.data).data
         
         # Naya response data banayein
@@ -579,3 +587,29 @@ class RiderEarningsView(generics.GenericAPIView):
         }
         
         return Response(response_data)
+
+class RiderCashDepositView(generics.ListCreateAPIView):
+    """
+    API: GET, POST /api/delivery/deposit-cash/
+    GET: Rider ki deposit history list karta hai.
+    POST: Rider ke liye nayi cash deposit request create karta hai.
+    """
+    permission_classes = [IsAuthenticated, IsRider]
+    serializer_class = RiderCashDepositSerializer
+
+    def get_queryset(self):
+        """
+        Sirf current authenticated rider ke deposits dikhayein.
+        """
+        return RiderCashDeposit.objects.filter(
+            rider=self.request.user.rider_profile
+        ).order_by('-created_at')
+
+    def perform_create(self, serializer):
+        """
+        Request create karte waqt rider ko automatically set karein.
+        """
+        serializer.save(
+            rider=self.request.user.rider_profile,
+            status=RiderCashDeposit.DepositStatus.PENDING # Hamesha PENDING se start hoga
+        )

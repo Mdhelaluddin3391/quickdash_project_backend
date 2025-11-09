@@ -17,6 +17,7 @@ from django.contrib.gis.measure import Distance
 import razorpay 
 from django.conf import settings
 import razorpay
+from .tasks import process_razorpay_refund_task
 # Model Imports
 from .models import Order, OrderItem, Payment, Address, Coupon
 from cart.models import Cart
@@ -451,153 +452,131 @@ class OrderDetailView(generics.RetrieveAPIView):
         ).select_related('store', 'delivery_address', 'delivery', 'coupon')
 
 
+
 class OrderCancelView(generics.GenericAPIView):
     """
     API: POST /api/orders/<order_id>/cancel/
-    (Cleaned up version - duplicate code removed)
+    (BUG FIX APPLIED: Refund logic ko Celery task mein move kar diya gaya hai)
     """
     permission_classes = [IsAuthenticated, IsCustomer]
     serializer_class = OrderDetailSerializer
 
-    @transaction.atomic # Poora function ek transaction mein hai
     def post(self, request, *args, **kwargs):
         order_id = self.kwargs.get('order_id')
         try:
-            order = Order.objects.select_for_update().get(
+            order = Order.objects.get(
                 order_id=order_id,
                 user=request.user
             )
         except Order.DoesNotExist:
             return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Logic bilkul sahi hai: PREPARING, OUT_FOR_DELIVERY, etc. ko cancel nahi hone dega
+        # 1. Check karein ki order cancel ho sakta hai ya nahi
         if order.status not in [Order.OrderStatus.PENDING, Order.OrderStatus.CONFIRMED]:
             return Response(
                 {"error": f"Order in status '{order.status}' cannot be cancelled."},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # 2. Time window check karein
         if order.status == Order.OrderStatus.CONFIRMED:
             confirmation_time = order.updated_at 
-
-            if (timezone.now() - confirmation_time).total_seconds() > settings.ORDER_CANCELLATION_WINDOW: 
+            # settings.ORDER_CANCELLATION_WINDOW ko settings.py mein define karein (e.g., 300 seconds)
+            if (timezone.now() - confirmation_time).total_seconds() > getattr(settings, 'ORDER_CANCELLATION_WINDOW', 300): 
                 return Response(
-                    {"error": f"Confirmed orders can only be cancelled within {settings.ORDER_CANCELLATION_WINDOW // 60} minutes."},
+                    {"error": f"Confirmed orders can only be cancelled within {getattr(settings, 'ORDER_CANCELLATION_WINDOW', 300) // 60} minutes."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
         
         original_status = order.status
-        
-        # --- NAYA REFUND LOGIC ---
         payment_to_refund = None
         
-        if order.payment_status == Order.PaymentStatus.SUCCESSFUL:
-            # Pehle check karein ki yeh Razorpay payment hai ya COD
-            payment = order.payments.filter(
-                status=Order.PaymentStatus.SUCCESSFUL,
-                payment_method='RAZORPAY'
-            ).first()
-            
-            if payment and payment.transaction_id:
-                # Yeh Razorpay payment hai, refund ke liye mark karein
-                payment_to_refund = payment
-            else:
-                # Yeh COD ya koi aur method tha, bas status badal dein
-                order.payment_status = Order.PaymentStatus.REFUNDED
-                print(f"Marking non-Razorpay order {order.order_id} as REFUNDED")
-        
-        # --- END NAYA LOGIC ---
-
-        # Order ko CANCELLED set karein (Duplicate code yahaan se hata diya gaya hai)
-        order.status = Order.OrderStatus.CANCELLED
-        # payment_status bhi yahaan update ho raha hai (agar non-razorpay hai)
-        order.save(update_fields=['status', 'payment_status']) 
-
-        # Delivery ko cancel karein (existing logic)
+        # 3. Database operations ko transaction mein daalein
         try:
-            delivery = Delivery.objects.select_for_update().get(order=order)
-            
-            if delivery.status in [
-                Delivery.DeliveryStatus.PICKED_UP,
-                Delivery.DeliveryStatus.DELIVERED
-            ]:
-                # Agar delivery pick up ho gayi hai toh transaction fail kar dein
-                raise Exception(f"Cannot cancel, delivery is already {delivery.status}")
-
-            delivery.status = Delivery.DeliveryStatus.CANCELLED
-            delivery.save()
-
-        except Delivery.DoesNotExist:
-            pass # Koi baat nahi agar delivery create nahi hui thi
-        except Exception as e:
-            # Upar wala raise Exception yahaan catch hoga
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Stock revert karein (existing logic)
-        if original_status == Order.OrderStatus.CONFIRMED:
-            order_items = order.items.all()
-            inventory_items_to_update = []
-            
-            for item in order_items:
-                if item.inventory_item:
-                    try:
-                        inv_item = StoreInventory.objects.select_for_update().get(id=item.inventory_item.id)
-                        inv_item.stock_quantity = F('stock_quantity') + item.quantity
-                        inventory_items_to_update.append(inv_item)
+            with transaction.atomic():
+                # Order ko lock karein
+                order_lock = Order.objects.select_for_update().get(pk=order.id)
+                
+                # Payment ko check karein
+                if order_lock.payment_status == Order.PaymentStatus.SUCCESSFUL:
+                    payment = order_lock.payments.filter(
+                        status=Order.PaymentStatus.SUCCESSFUL,
+                        payment_method='RAZORPAY'
+                    ).first()
+                    
+                    if payment and payment.transaction_id:
+                        # Refund ke liye mark karein
+                        payment_to_refund = payment
+                        # Naya status set karein
+                        payment.status = Order.PaymentStatus.REFUND_INITIATED
+                        payment.save(update_fields=['status'])
                         
-                    except StoreInventory.DoesNotExist:
-                        print(f"Warning: Inventory item {item.inventory_item.id} not found during stock revert.")
-            
-            if inventory_items_to_update:
-                StoreInventory.objects.bulk_update(inventory_items_to_update, ['stock_quantity'])
-                print(f"Stock reverted for {len(inventory_items_to_update)} items.")
+                        order_lock.payment_status = Order.PaymentStatus.REFUND_INITIATED
+                    else:
+                        # Yeh COD ya free order tha, bas REFUNDED mark karein
+                        order_lock.payment_status = Order.PaymentStatus.REFUNDED
+                
+                # Order ko CANCELLED set karein
+                order_lock.status = Order.OrderStatus.CANCELLED
+                order_lock.save(update_fields=['status', 'payment_status']) 
 
-        # --- NAYA RAZORPAY REFUND API CALL ---
-        # Yeh @transaction.atomic block ke andar hi hai
+                # Delivery ko cancel karein
+                try:
+                    delivery = Delivery.objects.select_for_update().get(order=order_lock)
+                    if delivery.status in [Delivery.DeliveryStatus.PICKED_UP, Delivery.DeliveryStatus.DELIVERED]:
+                        raise Exception(f"Cannot cancel, delivery is already {delivery.status}")
+                    
+                    delivery.status = Delivery.DeliveryStatus.CANCELLED
+                    delivery.save(update_fields=['status'])
+                except Delivery.DoesNotExist:
+                    pass # Koi baat nahi agar delivery create nahi hui thi
+
+                # Stock revert karein (sirf agar order 'CONFIRMED' tha)
+                if original_status == Order.OrderStatus.CONFIRMED:
+                    order_items = order_lock.items.all()
+                    inventory_items_to_update = []
+                    
+                    for item in order_items:
+                        if item.inventory_item:
+                            try:
+                                inv_item = StoreInventory.objects.select_for_update().get(id=item.inventory_item.id)
+                                inv_item.stock_quantity = F('stock_quantity') + item.quantity
+                                inventory_items_to_update.append(inv_item)
+                            except StoreInventory.DoesNotExist:
+                                print(f"Warning: Stock revert karte waqt Item {item.inventory_item.id} nahi mila.")
+                    
+                    if inventory_items_to_update:
+                        StoreInventory.objects.bulk_update(inventory_items_to_update, ['stock_quantity'])
+                        print(f"Stock reverted for {len(inventory_items_to_update)} items.")
+
+        except Exception as e:
+            # Agar transaction fail hota hai (e.g., delivery picked up ho gayi thi)
+            return Response(
+                {"error": f"Order cancellation failed during transaction: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 4. Transaction ke BAAD, Celery task ko trigger karein
         if payment_to_refund:
             try:
-                print(f"Attempting Razorpay refund for Order {order.order_id} (Payment ID: {payment_to_refund.transaction_id})")
-                
-                client = razorpay.Client(
-                    auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
-                )
-                
-                # Amount ko paise mein convert karein
-                refund_amount_paise = int(payment_to_refund.amount * 100)
-                
-                # Refund API call
-                refund_response = client.payment.refund(
-                    payment_to_refund.transaction_id, 
-                    {'amount': refund_amount_paise}
-                )
-                
-                # Check karein ki refund process hua
-                if refund_response and refund_response.get('status') == 'processed':
-                    order.payment_status = Order.PaymentStatus.REFUNDED
-                    payment_to_refund.status = Order.PaymentStatus.REFUNDED
-                    payment_to_refund.save(update_fields=['status'])
-                    order.save(update_fields=['payment_status'])
-                    print(f"Successfully processed refund for {order.order_id}")
-                else:
-                    # Refund create hua but process nahi hua
-                    print(f"Refund for {order.order_id} created but status is: {refund_response.get('status')}")
-                    raise Exception("Refund status was not 'processed'. Manual check required.")
-
+                # payment_to_refund.id (Payment object ki ID) bhej rahe hain
+                process_razorpay_refund_task.delay(payment_to_refund.id)
+                print(f"Refund task for Payment ID {payment_to_refund.id} ko trigger kar diya gaya hai.")
             except Exception as e:
-                # Agar refund fail hota hai (jaise "Payment already refunded"),
-                # toh poora transaction rollback ho jayega.
-                print(f"ERROR: Razorpay refund failed for {order.order_id}: {str(e)}")
-                # User ko error dikhayein
-                return Response(
-                    {"error": f"Order cancellation failed because refund could not be processed: {str(e)}"},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-        # --- END NAYA API CALL ---
+                # Agar Celery down hai, toh admin ko manual refund ke liye alert karein
+                print(f"CRITICAL ERROR: Refund task trigger nahi ho paaya: {e}")
+                # Hum user ko error nahi dikhayenge, kyunki order cancel ho chuka hai
+                # Yahaan par logging (e.g., Sentry) zaroori hai
+                pass
 
-        # Sab kuch safal raha
+        # 5. User ko response dein
+        # Order object ko refresh karein taaki naya status dikhe
+        order.refresh_from_db() 
         serializer = self.get_serializer(order, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+
+# ... (Aapke baaqi views jaise RazorpayWebhookView, RiderRatingView, etc. yahaan rahenge) ...
 
 
 @method_decorator(csrf_exempt, name='dispatch')

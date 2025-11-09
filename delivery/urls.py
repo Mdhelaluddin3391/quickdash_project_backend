@@ -8,7 +8,8 @@ from .views import (
     CurrentDeliveryDetailView,
     StaffNewOrderListView,
     StaffUpdateOrderStatusView,
-    RiderEarningsView
+    RiderEarningsView,
+    RiderCashDepositView
 )
 
 urlpatterns = [
@@ -47,4 +48,8 @@ urlpatterns = [
     path('staff/order/<str:order_id>/update-status/',
          StaffUpdateOrderStatusView.as_view(),
          name='staff-update-order'),
+
+     path('deposit-cash/', 
+         RiderCashDepositView.as_view(), 
+         name='rider-deposit-cash'),
 ]

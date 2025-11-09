@@ -9,7 +9,7 @@ from accounts.tasks import send_fcm_push_notification_task
 from decimal import Decimal # <-- Import pehle se hai, acchi baat hai
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone # <-- YEH IMPORT ADD KAREIN
-
+from django.db.models import F
 
 
 class RiderProfile(TimestampedModel):
@@ -354,3 +354,84 @@ class RiderPayout(TimestampedModel):
 
     def __str__(self):
         return f"Payout {self.amount_paid} to {self.rider.user.username} on {self.payment_date.date()}"
+    
+
+
+
+class RiderCashDeposit(TimestampedModel):
+    """
+    Rider dwara company ko kiye gaye cash deposit (e.g., UPI transfer)
+    ko track karta hai.
+    """
+    class DepositStatus(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        APPROVED = 'APPROVED', 'Approved'
+        REJECTED = 'REJECTED', 'Rejected'
+        
+    class DepositPaymentMethod(models.TextChoices):
+        UPI = 'UPI', 'UPI'
+        BANK_TRANSFER = 'BANK_TRANSFER', 'Bank Transfer'
+        CASH = 'CASH', 'Cash'
+        OTHER = 'OTHER', 'Other'
+
+    rider = models.ForeignKey(
+        RiderProfile,
+        on_delete=models.PROTECT, # Hum deposit record delete nahi karna chahte
+        related_name='cash_deposits'
+    )
+    
+    amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text="Rider ne kitna amount deposit kiya"
+    )
+    
+    payment_method = models.CharField(
+        max_length=20,
+        choices=DepositPaymentMethod.choices,
+        default=DepositPaymentMethod.UPI
+    )
+    
+    transaction_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="UPI/Bank Transaction ID (Rider provide karega)"
+    )
+    
+    notes = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Rider ke notes (optional)"
+    )
+    
+    status = models.CharField(
+        max_length=10,
+        choices=DepositStatus.choices,
+        default=DepositStatus.PENDING,
+        db_index=True
+    )
+
+    # Admin ke liye fields
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_deposits',
+        help_text="Kis admin/staff ne approve kiya"
+    )
+    admin_notes = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Admin ke notes (e.g., 'Checked in bank')"
+    )
+    
+    class Meta:
+        verbose_name = "Rider Cash Deposit"
+        verbose_name_plural = "Rider Cash Deposits"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Deposit of {self.amount} by {self.rider.user.username} ({self.status})"

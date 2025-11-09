@@ -129,6 +129,7 @@ class Order(TimestampedModel):
         PENDING = 'PENDING', 'Pending'
         SUCCESSFUL = 'SUCCESSFUL', 'Successful'
         FAILED = 'FAILED', 'Failed'
+        REFUND_INITIATED = 'REFUND_INITIATED', 'Refund Initiated' # <-- YEH NAYI LINE ADD KAREIN
         REFUNDED = 'REFUNDED', 'Refunded'
 
     order_id = models.CharField(
