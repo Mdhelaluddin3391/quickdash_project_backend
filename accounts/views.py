@@ -11,8 +11,9 @@ from delivery.models import Delivery
 from wms.models import PickTask
 # Model Imports
 from .models import User, Address, CustomerProfile
-StaffGoogleLoginSerializer
 # Serializer Imports
+from django.conf import settings
+
 from .serializers import (
     OTPSerializer, 
     OTPVerifySerializer, 
