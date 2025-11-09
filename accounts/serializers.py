@@ -196,3 +196,14 @@ class StaffPasswordResetConfirmSerializer(serializers.Serializer):
         if data['new_password'] != data['confirm_password']:
             raise serializers.ValidationError({"confirm_password": "Dono password match nahi karte."})
         return data
+    
+
+class StaffGoogleLoginSerializer(serializers.Serializer):
+    """
+    Staff Google Login ke liye frontend se 'id_token' lene ke liye.
+    """
+    id_token = serializers.CharField(
+        write_only=True,
+        required=True,
+        help_text="Frontend se mila Google ID Token"
+    )

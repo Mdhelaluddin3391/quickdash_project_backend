@@ -228,6 +228,13 @@ CHANNEL_LAYERS = {
     },
 }
 
+# --- Staff Google Login Settings ---
+# Yeh aapka company domain hai
+COMPANY_GOOGLE_DOMAIN = "Qickdash.com" 
+
+# Yeh aapko Google Cloud Console se milega
+# (Frontend (Web/Android) wala Client ID yahaan daalein)
+GOOGLE_STAFF_CLIENT_ID = config('GOOGLE_STAFF_CLIENT_ID', default=None)
 
 # Razorpay Settings
 RAZORPAY_KEY_ID = config('RAZORPAY_KEY_ID')
@@ -250,7 +257,7 @@ MAX_DELIVERY_FEE = 100.00 # (Maximum fee)
 TAX_RATE = 0.05           # (e.g., 5% GST)
 ORDER_CANCELLATION_WINDOW = 300
 RIDER_BASE_DELIVERY_FEE = 30.00
-RIDER_SEARCH_RADIUS_KM = 5
+RIDER_SEARCH_RADIUS_KM = 1
 
 """
 

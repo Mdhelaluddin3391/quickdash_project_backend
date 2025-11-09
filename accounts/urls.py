@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import SendOTPView, VerifyOTPView, DeleteAccountView, CustomerProfileView, AddressListCreateView, AddressDetailView, StaffLoginView, UpdateFCMTokenView, StaffPasswordResetRequestView, StaffPasswordResetConfirmView
+from .views import SendOTPView, VerifyOTPView, DeleteAccountView, CustomerProfileView, AddressListCreateView, AddressDetailView, StaffLoginView, UpdateFCMTokenView, StaffPasswordResetRequestView, StaffPasswordResetConfirmView, StaffGoogleLoginView
 
 urlpatterns = [
     # Auth
@@ -10,7 +10,7 @@ urlpatterns = [
     path('update-fcm-token/', UpdateFCMTokenView.as_view(), name='update-fcm-token'),
     # Profile Management
     path('profile/', CustomerProfileView.as_view(), name='customer-profile'),
-
+    path('staff-google-login/', StaffGoogleLoginView.as_sview(), name='staff-google-login'),
     path(
         'staff-password-reset/', 
         StaffPasswordResetRequestView.as_view(), 

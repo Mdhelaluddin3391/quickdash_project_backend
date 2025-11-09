@@ -11,7 +11,7 @@ from delivery.models import Delivery
 from wms.models import PickTask
 # Model Imports
 from .models import User, Address, CustomerProfile
-
+StaffGoogleLoginSerializer
 # Serializer Imports
 from .serializers import (
     OTPSerializer, 
@@ -356,3 +356,103 @@ class StaffPasswordResetConfirmView(generics.GenericAPIView):
             return Response({"error": "User nahi mila."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": f"Ek error hui: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+class StaffGoogleLoginView(generics.GenericAPIView):
+    """
+    API: POST /api/accounts/staff-google-login/
+    Google 'id_token' ko verify karta hai aur staff ke liye login karta hai.
+    """
+    serializer_class = StaffGoogleLoginSerializer
+    permission_classes = [permissions.AllowAny]
+
+    # Aapko yeh settings.py mein add karna hoga
+    COMPANY_DOMAIN = getattr(settings, 'COMPANY_GOOGLE_DOMAIN', 'Qickdash.com')
+    GOOGLE_CLIENT_ID = getattr(settings, 'GOOGLE_STAFF_CLIENT_ID', None)
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        token = serializer.validated_data['id_token']
+
+        if not self.GOOGLE_CLIENT_ID:
+            return Response(
+                {"error": "Google login is not configured on the server."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+
+        try:
+            # 1. Token ko Google se Verify karein
+            id_info = id_token.verify_oauth2_token(
+                token, 
+                google_requests.Request(), 
+                self.GOOGLE_CLIENT_ID
+            )
+
+            # 2. Email nikaalein
+            email = id_info.get('email')
+            if not email:
+                raise Exception("Email not found in Google token.")
+
+            # 3. Domain Check karein (Sabse zaroori step)
+            try:
+                domain = email.split('@')[1]
+                if domain.lower() != self.COMPANY_DOMAIN.lower():
+                    return Response(
+                        {"error": f"Aap sirf '{self.COMPANY_DOMAIN}' email se hi login kar sakte hain."},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+            except Exception:
+                 return Response(
+                    {"error": "Invalid email format."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # 4. User ko Database mein Check karein
+            # Hum username ko email ka pehla hissa bana denge
+            username = email.split('@')[0]
+            
+            user, created = User.objects.get_or_create(
+                email__iexact=email, # Case-insensitive email check
+                defaults={
+                    'username': username,
+                    'email': email,
+                    'first_name': id_info.get('given_name', ''),
+                    'last_name': id_info.get('family_name', ''),
+                    'phone_number': None # Phone number zaroori nahi hai
+                }
+            )
+            
+            # 5. Check karein ki user Staff hai ya nahi
+            if not hasattr(user, 'store_staff_profile') and not hasattr(user, 'rider_profile'):
+                # Agar user naya bana hai ya staff nahi hai
+                # Note: Aapko decide karna hai ki naye user ko automatically 
+                # staff profile deni hai ya admin se banwani hai.
+                # Abhi ke liye, hum maan rahe hain ki profile pehle se honi chahiye.
+                return Response(
+                    {"error": "Aapka company account register hai, lekin staff portal ke liye authorized nahi hai. Please admin se contact karein."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            # 6. Role aur Tokens Generate karein
+            tokens = get_tokens_for_user(user)
+            role = "staff" # Default
+            if hasattr(user, 'rider_profile'):
+                role = "rider"
+            elif hasattr(user, 'store_staff_profile'):
+                role = "staff"
+
+            return Response({
+                'tokens': tokens,
+                'role': role,
+                'user_id': user.id
+            }, status=status.HTTP_200_OK)
+
+        except ValueError as e:
+            # Invalid token
+            print(f"Google Auth Error: {e}")
+            return Response({"error": "Invalid Google token."}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            print(f"Google Login Error: {e}")
+            return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
