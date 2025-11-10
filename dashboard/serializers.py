@@ -86,3 +86,45 @@ class ManagerCustomerDetailSerializer(serializers.ModelSerializer):
             'profile', # Nested profile data
             'addresses'  # Nested list of addresses
         ]
+
+
+class AnalyticsTopProductSerializer(serializers.Serializer):
+    """(Read-only) Top bikne waale products ki report."""
+    product_name = serializers.CharField()
+    variant_name = serializers.CharField()
+    total_quantity_sold = serializers.IntegerField()
+    total_revenue = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+class AnalyticsTopPincodeSerializer(serializers.Serializer):
+    """(Read-only) Top order waale pincodes ki report."""
+    pincode = serializers.CharField()
+    order_count = serializers.IntegerField()
+
+class AnalyticsTopCustomerSerializer(serializers.Serializer):
+    """(Read-only) Top customers ki report."""
+    phone_number = serializers.CharField()
+    full_name = serializers.CharField(source='get_full_name')
+    order_count = serializers.IntegerField()
+    total_spent = serializers.DecimalField(max_digits=12, decimal_places=2)
+
+class AnalyticsRiderPerformanceSerializer(serializers.Serializer):
+    """(Read-only) Rider performance ki report."""
+    rider_name = serializers.CharField()
+    total_deliveries = serializers.IntegerField()
+    # Time seconds mein aayega
+    avg_pickup_time_seconds = serializers.FloatField(allow_null=True)
+    avg_delivery_time_seconds = serializers.FloatField(allow_null=True)
+
+class AnalyticsDashboardSerializer(serializers.Serializer):
+    """(Read-only) Poore analytics dashboard ko combine karne ke liye."""
+    
+    # 1. Overview Stats
+    total_revenue = serializers.DecimalField(max_digits=12, decimal_places=2)
+    total_orders = serializers.IntegerField()
+    average_order_value = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+    # 2. Top Lists (Nested)
+    top_products = AnalyticsTopProductSerializer(many=True)
+    top_pincodes = AnalyticsTopPincodeSerializer(many=True)
+    top_customers = AnalyticsTopCustomerSerializer(many=True)
+    rider_performance = AnalyticsRiderPerformanceSerializer(many=True)

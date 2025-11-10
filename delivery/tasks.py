@@ -27,8 +27,9 @@ def retry_unassigned_deliveries():
     stuck_deliveries = Delivery.objects.filter(
         status=Delivery.DeliveryStatus.PENDING_ACCEPTANCE,
         rider__isnull=True,
-        updated_at__lt=time_threshold # Sirf 1 min se puraane
+        updated_at__lt=timezone.now() - timedelta(minutes=1)
     ).select_related('order__store', 'order__store__location')
+
 
     if not stuck_deliveries.exists():
         print(f"CELERY TASK (retry_unassigned): No stuck deliveries found. All good.")
@@ -46,6 +47,7 @@ def retry_unassigned_deliveries():
 
         # FIX: Hardcoded 10km ko settings se replace kiya
         nearby_available_riders = RiderProfile.objects.filter(
+            user__is_active=True,  # <-- YEH NAYA CHECK ADD HUA
             is_online=True,
             on_delivery=False,
             current_location__isnull=False,

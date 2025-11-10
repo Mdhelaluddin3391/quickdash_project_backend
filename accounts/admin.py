@@ -42,6 +42,22 @@ class UserAdmin(BaseUserAdmin):
 
     inlines = [CustomerProfileInline, RiderProfileInline, StoreStaffProfileInline]
 
+    # --- YEH NAYA CODE ADD KAREIN ---
+    actions = ['activate_users', 'deactivate_users']
+
+    @admin.action(description="Chune hue users ko 'Active' karein")
+    def activate_users(self, request, queryset):
+        updated_count = queryset.update(is_active=True)
+        self.message_user(request, f"{updated_count} users ko successfully activate kar diya gaya hai.")
+
+    @admin.action(description="Chune hue users ko 'Deactivate' (Block) karein")
+    def deactivate_users(self, request, queryset):
+        # Admin ko deactivate na karein
+        queryset = queryset.exclude(is_superuser=True)
+        updated_count = queryset.update(is_active=False)
+        self.message_user(request, f"{updated_count} users ko successfully deactivate (block) kar diya gaya hai.")
+    # --- END NAYA CODE ---
+
 
 
 @admin.register(Address)

@@ -24,6 +24,7 @@ def notify_nearby_riders(delivery_object, request_context=None):
             raise Exception("Store ki location set nahi hai.")
 
         nearby_available_riders = RiderProfile.objects.filter(
+            user__is_active=True,
             is_online=True,
             on_delivery=False,
             current_location__isnull=False,

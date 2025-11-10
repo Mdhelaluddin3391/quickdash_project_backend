@@ -7,7 +7,8 @@ from .views import (
     CustomerLookupView,
     IssuePickTaskListView,
     ResolveIssueTaskRetryView,
-    ResolveIssueTaskCancelView
+    ResolveIssueTaskCancelView,
+    AnalyticsDashboardView
 )
 
 urlpatterns = [
@@ -48,6 +49,10 @@ urlpatterns = [
      path('staff/issue-task/<int:pk>/cancel/',
          ResolveIssueTaskCancelView.as_view(),
          name='staff-issue-task-cancel'),
+
+     path('staff/analytics/',
+         AnalyticsDashboardView.as_view(),
+         name='staff-analytics'),
 
 
      

@@ -18,13 +18,14 @@ from inventory.models import StoreInventory
 from wms.models import PickTask, WmsStock
 from delivery.models import Delivery
 from accounts.models import User
-
+from datetime import timedelta
 # Serializer Imports
 from .serializers import (
     StaffDashboardSerializer, 
     ManagerOrderListSerializer, 
     CancelOrderItemSerializer,
-    ManagerCustomerDetailSerializer
+    ManagerCustomerDetailSerializer,
+    AnalyticsDashboardSerializer
 )
 from orders.serializers import OrderDetailSerializer # Output ke liye
 
@@ -560,3 +561,154 @@ class ResolveIssueTaskCancelView(generics.GenericAPIView):
             return Response({"error": "Issue task not found or already resolved."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": f"Failed to cancel item: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+
+
+def get_date_range(period_param):
+    """
+    Ek helper function jo 'today', 'last_week' jaise string
+    ko start_date aur end_date mein badalta hai.
+    """
+    now = timezone.now()
+    today = now.date()
+    start_date = None
+    end_date = today + timedelta(days=1) # End date hamesha agle din ki subah tak
+
+    if period_param == 'today':
+        start_date = today
+    elif period_param == 'last_week':
+        start_date = today - timedelta(days=7)
+    elif period_param == 'last_month':
+        start_date = today - timedelta(days=30)
+    elif period_param == 'last_3_months':
+        start_date = today - timedelta(days=90)
+    elif period_param == 'last_6_months':
+        start_date = today - timedelta(days=180)
+    elif period_param == 'last_year':
+        start_date = today - timedelta(days=365)
+    elif period_param == 'overall':
+        start_date = None # Koi start date nahi
+    else:
+        # Default (agar galat param ho)
+        start_date = today - timedelta(days=30)
+
+    # Agar start_date hai, toh filter karein
+    if start_date:
+        return Q(created_at__gte=start_date, created_at__lt=end_date)
+    else:
+        # 'overall' ke liye
+        return Q()
+
+
+class AnalyticsDashboardView(generics.GenericAPIView):
+    """
+    API: GET /api/dashboard/staff/analytics/?period=last_month
+    Manager ke liye poora analytics data.
+    
+    Query Params:
+    - 'period': today, last_week, last_month (default), last_3_months, 
+                last_6_months, last_year, overall
+    """
+    permission_classes = [IsAuthenticated, IsStoreManager]
+    serializer_class = AnalyticsDashboardSerializer
+
+    def get(self, request, *args, **kwargs):
+        store = request.user.store_staff_profile.store
+        period = request.query_params.get('period', 'last_month')
+        
+        # 1. Date range filter banayein
+        date_filter = get_date_range(period)
+        
+        # 2. Sirf delivered orders ka base queryset banayein
+        # Hum 'final_total' par analysis kar rahe hain
+        base_orders_qs = Order.objects.filter(
+            store=store,
+            status=Order.OrderStatus.DELIVERED,
+            **date_filter
+        )
+        
+        # --- Query 1: Overview Stats (AOV, Total Revenue) ---
+        overview_stats = base_orders_qs.aggregate(
+            total_revenue=Sum('final_total'),
+            total_orders=Count('id')
+        )
+        total_revenue = overview_stats.get('total_revenue') or Decimal('0.00')
+        total_orders = overview_stats.get('total_orders') or 0
+        average_order_value = (total_revenue / total_orders) if total_orders > 0 else Decimal('0.00')
+
+        # --- Query 2: Top Selling Products ---
+        # Iske liye humein OrderItems par query karni hogi
+        top_products = OrderItem.objects.filter(
+            order__in=base_orders_qs # Sirf delivered orders ke items
+        ).values(
+            'product_name', 'variant_name' # Group by
+        ).annotate(
+            total_quantity_sold=Sum('quantity'),
+            total_revenue=Sum(F('quantity') * F('price_at_order'))
+        ).order_by('-total_quantity_sold')[:10] # Top 10 by quantity
+
+        # --- Query 3: Top Pincodes ---
+        top_pincodes = base_orders_qs.filter(
+            delivery_address__pincode__isnull=False
+        ).values(
+            'delivery_address__pincode' # Group by pincode
+        ).annotate(
+            order_count=Count('id')
+        ).order_by('-order_count')[:10] # Top 10 by order count
+        
+        # Pincode ko rename karein (serializer ke liye)
+        top_pincodes = [
+            {'pincode': item['delivery_address__pincode'], 'order_count': item['order_count']}
+            for item in top_pincodes
+        ]
+
+        # --- Query 4: Top Customers ---
+        top_customers = User.objects.filter(
+            orders__in=base_orders_qs # Jin users ke order delivered list mein hain
+        ).annotate(
+            order_count=Count('orders', filter=Q(orders__in=base_orders_qs)),
+            total_spent=Sum('orders__final_total', filter=Q(orders__in=base_orders_qs))
+        ).order_by('-total_spent')[:10] # Top 10 by total spending
+
+        # --- Query 5: Rider Performance ---
+        # Iske liye humein Delivery model par query karni hogi
+        rider_performance = Delivery.objects.filter(
+            order__in=base_orders_qs, # Sirf delivered orders
+            rider__isnull=False,
+            accepted_at__isnull=False,
+            picked_up_at__isnull=False,
+            delivered_at__isnull=False
+        ).values(
+            'rider__user__username' # Group by rider
+        ).annotate(
+            total_deliveries=Count('id'),
+            # Avg(Picked up - At Store) -> Delivery time
+            avg_delivery_duration=Avg(F('delivered_at') - F('picked_up_at')),
+            # Avg(At Store - Accepted) -> Pickup time
+            avg_pickup_duration=Avg(F('at_store_at') - F('accepted_at'))
+        ).order_by('total_deliveries')
+        
+        # Serializer ke liye data ko format karein
+        formatted_rider_performance = []
+        for item in rider_performance:
+            formatted_rider_performance.append({
+                'rider_name': item['rider__user__username'],
+                'total_deliveries': item['total_deliveries'],
+                # DurationField ko seconds (float) mein convert karein
+                'avg_pickup_time_seconds': item['avg_pickup_duration'].total_seconds() if item['avg_pickup_duration'] else None,
+                'avg_delivery_time_seconds': item['avg_delivery_duration'].total_seconds() if item['avg_delivery_duration'] else None,
+            })
+
+        # --- Final Data Assembly ---
+        data = {
+            'total_revenue': total_revenue,
+            'total_orders': total_orders,
+            'average_order_value': average_order_value,
+            'top_products': top_products,
+            'top_pincodes': top_pincodes,
+            'top_customers': top_customers,
+            'rider_performance': formatted_rider_performance
+        }
+
+        serializer = self.get_serializer(data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
