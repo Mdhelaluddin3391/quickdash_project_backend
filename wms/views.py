@@ -190,7 +190,8 @@ class PickTaskReportIssueView(generics.GenericAPIView):
             task.picker_notes = serializer.validated_data['notes']
             task.save(update_fields=['status', 'picker_notes', 'updated_at'])
 
-        logger.info(f"Picker {request.user.username} reported issue on Task {task.id}: {task.picker_notes}") # <-- CHANGED
+        # --- FIX: Replaced request.user.username with request.user.id ---
+        logger.info(f"Picker (User ID: {request.user.id}) reported issue on Task {task.id}: {task.picker_notes}")
 
         # Response mein updated task bhejein
         response_serializer = PickTaskSerializer(task, context={'request': request})
@@ -237,13 +238,15 @@ class RequestNewTaskView(generics.GenericAPIView):
                 picker_profile.save(update_fields=['last_task_assigned_at'])
             
             # 4. Success response (poora task detail bhejein)
-            logger.info(f"Task {task.id} auto-assigned to picker {request.user.username}") # <-- CHANGED
+            # --- FIX: Replaced request.user.username with request.user.id ---
+            logger.info(f"Task {task.id} auto-assigned to picker (User ID: {request.user.id})")
             serializer = self.get_serializer(task, context={'request': request})
             return Response(serializer.data, status=status.HTTP_200_OK)
         
         except Exception as e:
             # Shayad 'skip_locked=True' ki wajah se ya koi aur error
-            logger.warning(f"Error during new task request for {request.user.username}: {e}") # <-- CHANGED
+            # --- FIX: Replaced request.user.username with request.user.id ---
+            logger.warning(f"Error during new task request for User ID {request.user.id}: {e}")
             return Response(
                 {"error": "Could not assign task, please try again."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE # 503 matlab "thodi der baad try karo"

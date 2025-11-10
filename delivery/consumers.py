@@ -51,7 +51,8 @@ class RiderNotificationConsumer(WebsocketConsumer):
         
         self.accept()
         # Log mein username print karein, channel_name nahi
-        logger.info(f"Rider connected: {self.user.username}. Added to 'online_riders' and '{self.rider_group_name}'.") # <-- CHANGED
+        # --- FIX: Replaced self.user.username with self.user.id ---
+        logger.info(f"Rider connected: (User ID: {self.user.id}). Added to 'online_riders' and '{self.rider_group_name}'.")
 
 
     def disconnect(self, close_code):
@@ -74,7 +75,8 @@ class RiderNotificationConsumer(WebsocketConsumer):
             )
             # --- End STEP 4.2 ---
             
-            logger.info(f"Rider disconnected: {self.user.username}. Removed from groups.") # <-- CHANGED
+            # --- FIX: Replaced self.user.username with self.user.id ---
+            logger.info(f"Rider disconnected: (User ID: {self.user.id}). Removed from groups.")
 
     # --- Group se message receive karne wale handlers ---
 
@@ -90,7 +92,8 @@ class RiderNotificationConsumer(WebsocketConsumer):
             'type': 'NEW_DELIVERY',
             'payload': delivery_data
         }))
-        logger.info(f"Sent NEW_DELIVERY notification to {self.user.username}") # <-- CHANGED
+        # --- FIX: Replaced self.user.username with self.user.id ---
+        logger.info(f"Sent NEW_DELIVERY notification to User ID: {self.user.id}")
 
 
 class CustomerTrackingConsumer(WebsocketConsumer):
@@ -122,7 +125,8 @@ class CustomerTrackingConsumer(WebsocketConsumer):
                 return
         except Exception as e:
             # Koi aur error (e.g., invalid order_id format)
-            logger.warning(f"CustomerTrackingConsumer connect error for {self.user.username} on order {self.order_id}: {e}") # <-- ADDED
+            # --- FIX: Replaced self.user.username with self.user.id ---
+            logger.warning(f"CustomerTrackingConsumer connect error for User ID {self.user.id} on order {self.order_id}: {e}")
             self.close()
             return
         # --- END SECURITY UPDATE ---
@@ -134,7 +138,8 @@ class CustomerTrackingConsumer(WebsocketConsumer):
         )
 
         self.accept()
-        logger.info(f"Customer connected: {self.user.username}. Added to '{self.order_group_name}'.") # <-- CHANGED
+        # --- FIX: Replaced self.user.username with self.user.id ---
+        logger.info(f"Customer connected: (User ID: {self.user.id}). Added to '{self.order_group_name}'.")
 
     def disconnect(self, close_code):
         # --- SECURITY UPDATE ---
@@ -145,7 +150,8 @@ class CustomerTrackingConsumer(WebsocketConsumer):
                 self.order_group_name,
                 self.channel_name
             )
-            logger.info(f"Customer disconnected: {self.user.username}. Removed from '{self.order_group_name}'.") # <-- CHANGED
+            # --- FIX: Replaced self.user.username with self.user.id ---
+            logger.info(f"Customer disconnected: (User ID: {self.user.id}). Removed from '{self.order_group_name}'.")
 
     def rider_location_update(self, event):
         """
