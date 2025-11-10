@@ -21,6 +21,7 @@ from delivery.models import Delivery
 from accounts.models import User
 from datetime import timedelta
 # Serializer Imports
+from decimal import Decimal
 from .serializers import (
     StaffDashboardSerializer, 
     ManagerOrderListSerializer, 
@@ -150,142 +151,6 @@ class ManagerOrderListView(generics.ListAPIView):
         return queryset
     
 
-class CancelOrderItemView(generics.GenericAPIView):
-    """
-    API: POST /api/dashboard/staff/order-item/cancel/
-    Manager ko ek order item ko FC (Fulfilment Cancel) karne deta hai.
-    """
-    # Yeh ek powerful action hai, sirf Manager ke liye
-    permission_classes = [IsAuthenticated, IsStoreManager]
-    serializer_class = CancelOrderItemSerializer
-
-    def post(self, request, *args, **kwargs):
-        # --- GUARDED IMPORTS ---
-        from wms.models import PickTask
-        # --- END GUARDED IMPORTS ---
-        
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        order_item_id = serializer.validated_data['order_item_id']
-        quantity_to_cancel = serializer.validated_data['quantity_to_cancel']
-        
-        staff_store = request.user.store_staff_profile.store
-
-        try:
-            with transaction.atomic():
-                order_item = OrderItem.objects.select_for_update().get(id=order_item_id)
-                order = order_item.order
-                
-                # Validations
-                if order.store != staff_store:
-                    raise Exception("Aap yeh order item cancel nahi kar sakte (galat store).")
-                if order.status not in [Order.OrderStatus.CONFIRMED, Order.OrderStatus.PREPARING]:
-                    raise Exception(f"Order ko '{order.status}' status mein cancel nahi kiya ja sakta.")
-                if quantity_to_cancel > order_item.quantity:
-                    raise Exception(f"Aap {quantity_to_cancel} cancel nahi kar sakte. Item ki quantity sirf {order_item.quantity} hai.")
-
-                # WMS Pick Tasks ko Cancel/Update karein
-                pending_tasks = PickTask.objects.filter(
-                    order=order,
-                    variant=order_item.inventory_item.variant,
-                    status=PickTask.PickStatus.PENDING
-                ).order_by('-quantity_to_pick') # Bade task pehle
-                
-                wms_qty_to_cancel = quantity_to_cancel
-                tasks_to_update = []
-                
-                for task in pending_tasks:
-                    if wms_qty_to_cancel <= 0: break
-                    if task.quantity_to_pick <= wms_qty_to_cancel:
-                        task.status = PickTask.PickStatus.CANCELLED
-                        tasks_to_update.append(task)
-                        wms_qty_to_cancel -= task.quantity_to_pick
-                    else:
-                        task.quantity_to_pick -= wms_qty_to_cancel
-                        tasks_to_update.append(task)
-                        wms_qty_to_cancel = 0
-                
-                if tasks_to_update:
-                    PickTask.objects.bulk_update(tasks_to_update, ['status', 'quantity_to_pick'])
-                
-                # BUG FIX: Agar quantity cancel karne ke liye PENDING task nahi mile
-                # (yaani task pehle hi COMPLETE ho chuka hai), toh error dein.
-                if wms_qty_to_cancel > 0:
-                    # Check karein ki task complete toh nahi ho gaya
-                    completed_tasks_exist = PickTask.objects.filter(
-                        order=order,
-                        variant=order_item.inventory_item.variant,
-                        status=PickTask.PickStatus.COMPLETED
-                    ).exists()
-                    if completed_tasks_exist:
-                         raise Exception(f"FC Failed: Item '{order_item.variant_name}' pehle hi pick ho chuka hai.")
-                    else:
-                         # `print` ko `logger.warning` se replace karein
-                         logger.warning(f"WARNING: FC ke liye PENDING pick tasks nahi mile. {wms_qty_to_cancel} quantity cancel nahi ho paayi.")
-
-                # OrderItem aur Order ko Recalculate karein
-                price_per_unit = order_item.price_at_order
-                total_item_price_to_cancel = price_per_unit * quantity_to_cancel
-                
-                order_item.quantity -= quantity_to_cancel
-                if order_item.quantity == 0:
-                    order_item.delete()
-                else:
-                    order_item.save()
-                
-                original_final_total = order.final_total
-                new_subtotal = order.item_subtotal - total_item_price_to_cancel
-                
-                new_discount = Decimal('0.00')
-                if order.coupon:
-                    new_discount = order.coupon.calculate_discount(new_subtotal)
-                    if not order.coupon.is_valid(new_subtotal)[0]:
-                        new_discount = Decimal('0.00')
-                
-                tax_rate = getattr(settings, 'TAX_RATE', Decimal('0.05'))
-                new_taxable_amount = new_subtotal - new_discount
-                new_taxes = (new_taxable_amount * tax_rate).quantize(Decimal('0.01'))
-                
-                new_final_total = (
-                    new_taxable_amount + new_taxes + 
-                    order.delivery_fee + order.rider_tip
-                ).quantize(Decimal('0.01'))
-                
-                total_to_refund = original_final_total - new_final_total
-                
-                order.item_subtotal = new_subtotal
-                order.discount_amount = new_discount
-                order.taxes_amount = new_taxes
-                order.final_total = new_final_total
-                order.save()
-
-            # Transaction ke BAAD, Refund Trigger karein
-            if total_to_refund > 0:
-                payment = order.payments.filter(
-                    status=Order.PaymentStatus.SUCCESSFUL,
-                    payment_method='RAZORPAY'
-                ).first()
-                
-                if payment:
-                    refund_paise = int(total_to_refund * 100)
-                    process_razorpay_refund_task.delay(
-                        payment_id=payment.id, 
-                        amount_to_refund_paise=refund_paise, 
-                        is_partial_refund=True
-                    )
-                    # `print` ko `logger.info` se replace karein
-                    logger.info(f"Partial refund task (₹{total_to_refund}) for order {order.order_id} triggered.")
-
-            serializer = OrderDetailSerializer(order, context={'request': request})
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
-        except OrderItem.DoesNotExist:
-            return Response({"error": "Order item not found."}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            # Error ko log karein
-            logger.error(f"CancelOrderItemView failed for order_item {order_item_id}: {str(e)}")
-            return Response({"error": f"FC failed: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
         
 
 class ManualPackView(generics.GenericAPIView):
@@ -481,6 +346,137 @@ class ResolveIssueTaskRetryView(generics.GenericAPIView):
             status=status.HTTP_200_OK
         )
 
+# File: dashboard/views.py
+
+# ... (all existing imports like logging, transaction, settings, models, etc.) ...
+# Make sure Decimal is imported
+
+
+# ... (StaffDashboardView and ManagerOrderListView remain the same) ...
+
+
+class CancelOrderItemView(generics.GenericAPIView):
+    """
+    API: POST /api/dashboard/staff/order-item/cancel/
+    Manager ko ek order item ko FC (Fulfilment Cancel) karne deta hai.
+    """
+    # Yeh ek powerful action hai, sirf Manager ke liye
+    permission_classes = [IsAuthenticated, IsStoreManager]
+    serializer_class = CancelOrderItemSerializer
+
+    def post(self, request, *args, **kwargs):
+        # --- GUARDED IMPORTS ---
+        from wms.models import PickTask
+        # --- END GUARDED IMPORTS ---
+        
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        order_item_id = serializer.validated_data['order_item_id']
+        quantity_to_cancel = serializer.validated_data['quantity_to_cancel']
+        
+        staff_store = request.user.store_staff_profile.store
+
+        try:
+            with transaction.atomic():
+                order_item = OrderItem.objects.select_for_update().get(id=order_item_id)
+                order = order_item.order
+                
+                # Validations
+                if order.store != staff_store:
+                    raise Exception("Aap yeh order item cancel nahi kar sakte (galat store).")
+                if order.status not in [Order.OrderStatus.CONFIRMED, Order.OrderStatus.PREPARING]:
+                    raise Exception(f"Order ko '{order.status}' status mein cancel nahi kiya ja sakta.")
+                if quantity_to_cancel > order_item.quantity:
+                    raise Exception(f"Aap {quantity_to_cancel} cancel nahi kar sakte. Item ki quantity sirf {order_item.quantity} hai.")
+
+                # ... (WMS Pick Tasks cancellation logic remains exactly the same) ...
+                pending_tasks = PickTask.objects.filter(
+                    order=order,
+                    variant=order_item.inventory_item.variant,
+                    status=PickTask.PickStatus.PENDING
+                ).order_by('-quantity_to_pick') # Bade task pehle
+                
+                wms_qty_to_cancel = quantity_to_cancel
+                tasks_to_update = []
+                
+                for task in pending_tasks:
+                    if wms_qty_to_cancel <= 0: break
+                    if task.quantity_to_pick <= wms_qty_to_cancel:
+                        task.status = PickTask.PickStatus.CANCELLED
+                        tasks_to_update.append(task)
+                        wms_qty_to_cancel -= task.quantity_to_pick
+                    else:
+                        task.quantity_to_pick -= wms_qty_to_cancel
+                        tasks_to_update.append(task)
+                        wms_qty_to_cancel = 0
+                
+                if tasks_to_update:
+                    PickTask.objects.bulk_update(tasks_to_update, ['status', 'quantity_to_pick'])
+                
+                if wms_qty_to_cancel > 0:
+                    completed_tasks_exist = PickTask.objects.filter(
+                        order=order,
+                        variant=order_item.inventory_item.variant,
+                        status=PickTask.PickStatus.COMPLETED
+                    ).exists()
+                    if completed_tasks_exist:
+                         raise Exception(f"FC Failed: Item '{order_item.variant_name}' pehle hi pick ho chuka hai.")
+                    else:
+                         logger.warning(f"WARNING: FC ke liye PENDING pick tasks nahi mile. {wms_qty_to_cancel} quantity cancel nahi ho paayi.")
+                # --- END WMS LOGIC ---
+
+
+                # --- REFACTORED RECALCULATION LOGIC ---
+                
+                original_final_total = order.final_total
+                
+                # 1. Update the OrderItem
+                order_item.quantity -= quantity_to_cancel
+                if order_item.quantity == 0:
+                    order_item.delete()
+                else:
+                    order_item.save()
+                
+                # 2. Call the centralized method
+                # Yeh item_subtotal, discount, tax, aur final_total ko fix kar dega
+                order.recalculate_totals(save=True)
+                
+                # 3. Calculate the refund amount
+                order.refresh_from_db() # Get the new final_total
+                new_final_total = order.final_total
+                total_to_refund = original_final_total - new_final_total
+                
+                # --- END REFACTORED LOGIC ---
+
+            # Transaction ke BAAD, Refund Trigger karein
+            if total_to_refund > 0:
+                payment = order.payments.filter(
+                    status=Order.PaymentStatus.SUCCESSFUL,
+                    payment_method='RAZORPAY'
+                ).first()
+                
+                if payment:
+                    refund_paise = int(total_to_refund * 100)
+                    process_razorpay_refund_task.delay(
+                        payment_id=payment.id, 
+                        amount_to_refund_paise=refund_paise, 
+                        is_partial_refund=True
+                    )
+                    logger.info(f"Partial refund task (₹{total_to_refund}) for order {order.order_id} triggered.")
+
+            serializer = OrderDetailSerializer(order, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except OrderItem.DoesNotExist:
+            return Response({"error": "Order item not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"CancelOrderItemView failed for order_item {order_item_id}: {str(e)}")
+            return Response({"error": f"FC failed: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+
+# ... (ManualPackView and CustomerLookupView remain the same) ...
+
 
 class ResolveIssueTaskCancelView(generics.GenericAPIView):
     """
@@ -508,7 +504,6 @@ class ResolveIssueTaskCancelView(generics.GenericAPIView):
                 )
                 
                 # 2. Corresponding OrderItem dhoondein
-                # (Maan rahe hain ki ek order mein ek variant ek hi baar hota hai)
                 order_item = OrderItem.objects.select_for_update().filter(
                     order=task.order, 
                     inventory_item__variant=task.variant
@@ -522,11 +517,11 @@ class ResolveIssueTaskCancelView(generics.GenericAPIView):
                 if quantity_to_cancel > order_item.quantity:
                     raise Exception(f"Cannot cancel {quantity_to_cancel}. Item quantity is only {order_item.quantity}.")
 
+                # --- REFACTORED RECALCULATION LOGIC ---
+
                 # 3. OrderItem aur Order ko Recalculate karein
-                # Yeh logic 'CancelOrderItemView' se liya gaya hai
-                
-                price_per_unit = order_item.price_at_order
-                total_item_price_to_cancel = price_per_unit * quantity_to_cancel
+                order = task.order
+                original_final_total = order.final_total
                 
                 order_item.quantity -= quantity_to_cancel
                 if order_item.quantity <= 0:
@@ -541,39 +536,14 @@ class ResolveIssueTaskCancelView(generics.GenericAPIView):
                 task.save()
 
                 # 5. Order Total ko Recalculate karein
-                order = task.order
-                original_final_total = order.final_total
-                
-                # Naya Subtotal
-                new_subtotal = order.item_subtotal - total_item_price_to_cancel
-                
-                # Naya Discount (agar coupon tha)
-                new_discount = Decimal('0.00')
-                if order.coupon:
-                    # Check karein ki coupon abhi bhi valid hai (kam total par)
-                    if order.coupon.is_valid(new_subtotal)[0]:
-                        new_discount = order.coupon.calculate_discount(new_subtotal)
-                    # Agar valid nahi hai, toh discount 0 ho jayega
-                
-                # Naya Tax
-                tax_rate = getattr(settings, 'TAX_RATE', Decimal('0.05'))
-                new_taxable_amount = new_subtotal - new_discount
-                new_taxes = (new_taxable_amount * tax_rate).quantize(Decimal('0.01'))
-                
-                # Naya Final Total
-                new_final_total = (
-                    new_taxable_amount + new_taxes + 
-                    order.delivery_fee + order.rider_tip
-                ).quantize(Decimal('0.01'))
-                
+                order.recalculate_totals(save=True)
+
+                # 6. Calculate refund amount
+                order.refresh_from_db()
+                new_final_total = order.final_total
                 total_to_refund = original_final_total - new_final_total
                 
-                # Order par save karein
-                order.item_subtotal = new_subtotal
-                order.discount_amount = new_discount
-                order.taxes_amount = new_taxes
-                order.final_total = new_final_total
-                order.save()
+                # --- END REFACTORED LOGIC ---
 
             # 6. Transaction ke BAAD, Refund Trigger karein
             if total_to_refund > 0:
@@ -589,7 +559,6 @@ class ResolveIssueTaskCancelView(generics.GenericAPIView):
                         amount_to_refund_paise=refund_paise, 
                         is_partial_refund=True
                     )
-                    # `print` ko `logger.info` se replace karein
                     logger.info(f"Partial refund task (₹{total_to_refund}) for order {order.order_id} triggered from IssueResolve.")
 
             # Poora updated order response mein bhejein
@@ -599,10 +568,11 @@ class ResolveIssueTaskCancelView(generics.GenericAPIView):
         except PickTask.DoesNotExist:
             return Response({"error": "Issue task not found or already resolved."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            # Error ko log karein
             logger.error(f"ResolveIssueTaskCancelView failed for task {pk}: {str(e)}")
             return Response({"error": f"Failed to cancel item: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
         
+
+# ... (Rest of dashboard/views.py remains the same) ...
 
 
 def get_date_range(period_param):

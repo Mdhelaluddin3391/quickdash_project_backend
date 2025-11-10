@@ -239,6 +239,13 @@ def process_successful_payment(order_id):
 
 
 
+# File: orders/views.py
+
+# ... (all your existing imports like logging, transaction, settings, models, etc.) ...
+# Make sure Decimal is imported from decimal
+from decimal import Decimal
+
+# ... (process_successful_payment function remains the same as our last update) ...
 
 
 class CheckoutView(generics.GenericAPIView):
@@ -258,10 +265,7 @@ class CheckoutView(generics.GenericAPIView):
         
         payment_method = validated_data.get('payment_method', 'RAZORPAY')
         coupon = validated_data.get('coupon_code') 
-        
-        # --- RIDER TIP LOGIC ---
         rider_tip = validated_data.get('rider_tip', Decimal('0.00'))
-        # --- END RIDER TIP ---
 
         try:
             cart = Cart.objects.get(user=user)
@@ -275,23 +279,19 @@ class CheckoutView(generics.GenericAPIView):
         store = cart.store
         address = Address.objects.get(id=validated_data['delivery_address_id'], user=user)
 
-        # --- NAYA CALCULATION LOGIC (WITH TIP) ---
+        # --- REFACTORED CALCULATION LOGIC ---
         
-        # 1. Cart ka subtotal
+        # 1. Cart ka subtotal (yeh humein cart se chahiye)
         item_subtotal = cart.total_price
         
-        # 2. Coupon discount
-        discount_amount = Decimal('0.00')
+        # 2. Coupon validation (Order create karne se pehle check karna zaroori hai)
         if coupon:
             is_valid, message = coupon.is_valid(item_subtotal)
             if not is_valid:
+                # Agar coupon invalid hai (e.g., min purchase), toh fail karein
                 return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
-            discount_amount = coupon.calculate_discount(item_subtotal)
         
-        # 3. Discounted subtotal
-        subtotal_after_discount = (item_subtotal - discount_amount)
-        
-        # 4. Delivery fee
+        # 3. Delivery fee (yeh bhi pehle calculate karna zaroori hai)
         delivery_fee = Decimal('0.00')
         try:
             if store.location and address.location:
@@ -305,25 +305,11 @@ class CheckoutView(generics.GenericAPIView):
                 delivery_fee = settings.MIN_DELIVERY_FEE
         except AttributeError:
             delivery_fee = Decimal('20.00') 
-            logger.warning("Delivery fee settings not found in settings.py. Using default 20.00") # <-- CHANGED
+            logger.warning("Delivery fee settings not found in settings.py. Using default 20.00")
 
-        # 5. Tax (Discounted price par)
-        tax_rate = getattr(settings, 'TAX_RATE', Decimal('0.05')) # 5% default
-        taxes_amount = (subtotal_after_discount * tax_rate).quantize(Decimal('0.01'))
+        # --- BAAKI SABHI CALCULATIONS (DISCOUNT, TAX, FINAL TOTAL) YAHAN SE HATA DIYE GAYE HAIN ---
         
-        # 6. Final Total (Tip ko yahaan jodein)
-        final_total = (
-            subtotal_after_discount + 
-            delivery_fee + 
-            taxes_amount + 
-            rider_tip  # <-- Tip ko total mein joda gaya
-        ).quantize(Decimal('0.01'))
-        
-        if final_total < 0:
-            final_total = Decimal('0.00')
-            
-        final_total_paise = int(final_total * 100)
-        # --- End Calculation ---
+        # --- End Refactored Calculation ---
 
         # Step 1: Django mein PENDING Order banayein
         try:
@@ -331,19 +317,20 @@ class CheckoutView(generics.GenericAPIView):
                 user=user,
                 store=store,
                 delivery_address=address,
-                item_subtotal=item_subtotal,
-                delivery_fee=delivery_fee,
-                taxes_amount=taxes_amount,
-                coupon=coupon,
-                discount_amount=discount_amount,
-                rider_tip=rider_tip,             # <-- Tip ko save karein
-                final_total=final_total,
+                item_subtotal=item_subtotal,     # <-- Humara calculated subtotal
+                delivery_fee=delivery_fee,      # <-- Humari calculated delivery fee
+                taxes_amount=Decimal('0.00'),   # <-- Default, model calculate karega
+                coupon=coupon,                  # <-- Validated coupon
+                discount_amount=Decimal('0.00'),# <-- Default, model calculate karega
+                rider_tip=rider_tip,            # <-- User ka tip
+                final_total=Decimal('0.00'),    # <-- Default, model calculate karega
                 special_instructions=validated_data.get('special_instructions', ''),
                 status=Order.OrderStatus.PENDING, 
                 payment_status=Order.PaymentStatus.PENDING
             )
 
             # OrderItems banayein
+            # YEH ZAROORI HAI: recalculate_totals() se pehle items order se link hone chahiye
             order_items_to_create = []
             for item in cart_items:
                 order_items_to_create.append(
@@ -357,6 +344,12 @@ class CheckoutView(generics.GenericAPIView):
                     )
                 )
             OrderItem.objects.bulk_create(order_items_to_create)
+            
+            # --- CHANGE: Call the new centralized method ---
+            # Yeh method ab subtotal, discount, tax, aur final total
+            # ko calculate karke order par SAVE karega.
+            order.recalculate_totals(save=True)
+            # --- END CHANGE ---
 
         except Exception as e:
             logger.error(f"Checkout (Step 1 - Order Creation) failed for user {user.username}: {e}") # <-- ADDED
@@ -365,6 +358,11 @@ class CheckoutView(generics.GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        
+        # --- CHANGE: Final total ko order se dobara padhein ---
+        # Ab yeh hamesha model se match karega
+        final_total_paise = int(order.final_total * 100)
+        # --- END CHANGE ---
         
         # Step 2: Payment Method ke aadhar par logic alag karein
         
@@ -376,7 +374,7 @@ class CheckoutView(generics.GenericAPIView):
                 Payment.objects.create(
                     order=order,
                     payment_method='COD',
-                    amount=final_total, # <-- Yeh ab tip-included total hai
+                    amount=order.final_total, # <-- Refactored total
                     status=Order.PaymentStatus.PENDING,
                     transaction_id=f"cod_{order.order_id}"
                 )
@@ -443,7 +441,7 @@ class CheckoutView(generics.GenericAPIView):
                 )
                 
                 razorpay_order_data = {
-                    'amount': final_total_paise, # <-- Yeh ab tip-included amount hai
+                    'amount': final_total_paise, # <-- Refactored total
                     'currency': 'INR',
                     'receipt': order.order_id,
                     'notes': {'django_order_id': order.order_id}
@@ -453,7 +451,7 @@ class CheckoutView(generics.GenericAPIView):
                 Payment.objects.create(
                     order=order,
                     payment_method='RAZORPAY',
-                    amount=final_total, # <-- Yeh ab tip-included amount hai
+                    amount=order.final_total, # <-- Refactored total
                     status=Order.PaymentStatus.PENDING,
                     razorpay_order_id=razorpay_order['id'],
                     transaction_id=f"pending_{order.order_id}"
@@ -484,6 +482,9 @@ class CheckoutView(generics.GenericAPIView):
                 {"error": f"Payment method '{payment_method}' is not supported."}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+
+
 
     
 @method_decorator(csrf_exempt, name='dispatch')

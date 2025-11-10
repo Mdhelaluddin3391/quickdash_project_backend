@@ -60,14 +60,33 @@ class CartItemAddView(generics.GenericAPIView):
         ).get_or_create(user=request.user)
         
         cart_store = cart.store
+        
+        # --- START MODIFIED LOGIC ---
+        
         if cart_store and cart_store != inventory_item.store:
+            # Badlaav yahaan hai. Hum 400 ke bajaye 409 CONFLICT bhej rahe hain.
+            # Hum frontend ko batane ke liye data bhi bhej rahe hain.
             return Response(
-                {"error": f"Aap sirf '{cart_store.name}' store se hi items add kar sakte hain. "
-                          "Naye store se order karne ke liye pehle cart khaali karein."},
-                status=status.HTTP_400_BAD_REQUEST
+                {
+                    "code": "STORE_CONFLICT",
+                    "error": (
+                        f"Aap sirf '{cart_store.name}' store se hi items add kar sakte hain. "
+                        "Naye store se order karne ke liye pehle cart khaali karein."
+                    ),
+                    "current_store": {
+                        "id": cart_store.id,
+                        "name": cart_store.name
+                    },
+                    "new_store": {
+                        "id": inventory_item.store.id,
+                        "name": inventory_item.store.name
+                    }
+                },
+                status=status.HTTP_409_CONFLICT # <-- Status code badal gaya
             )
         
-
+        # --- END MODIFIED LOGIC ---
+        
         with transaction.atomic():
             try:
                 locked_inventory_item = StoreInventory.objects.select_for_update().get(id=inventory_item_id)
@@ -104,7 +123,6 @@ class CartItemAddView(generics.GenericAPIView):
         
         cart_serializer = CartSerializer(optimized_cart, context={'request': request})
         return Response(cart_serializer.data, status=status.HTTP_200_OK)
-
 
 class CartItemUpdateView(generics.GenericAPIView):
     """

@@ -249,7 +249,7 @@ MAX_DELIVERY_FEE = 100.00 # (Maximum fee)
 TAX_RATE = 0.05           # (e.g., 5% GST)
 ORDER_CANCELLATION_WINDOW = 300
 RIDER_BASE_DELIVERY_FEE = 30.00
-RIDER_SEARCH_RADIUS_KM = 1
+RIDER_SEARCH_RADIUS_KM = config('RIDER_SEARCH_RADIUS_KM', default=1.0, cast=float)
 
 # --- Production Storage (S3) vs Local Storage ---
 

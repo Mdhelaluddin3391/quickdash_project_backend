@@ -224,6 +224,60 @@ class Order(TimestampedModel):
         help_text="Customer ke special instructions (e.g., 'less spicy')"
     )
 
+
+    def recalculate_totals(self, save=False):
+        """
+        Calculates and updates item_subtotal, discount, taxes, and final_total
+        based on the order's current items, coupon, delivery_fee, and tip.
+        """
+        
+        # 1. Calculate Item Subtotal from all OrderItems
+        item_subtotal = self.items.aggregate(
+            total=Sum(F('price_at_order') * F('quantity'))
+        )['total'] or Decimal('0.00')
+        self.item_subtotal = item_subtotal
+
+        # 2. Calculate Discount
+        discount_amount = Decimal('0.00')
+        if self.coupon:
+            is_valid, _ = self.coupon.is_valid(item_subtotal)
+            if is_valid:
+                discount_amount = self.coupon.calculate_discount(item_subtotal)
+            else:
+                # Coupon is no longer valid (e.g., subtotal dropped below min),
+                # so remove it from the order.
+                self.coupon = None
+        
+        self.discount_amount = discount_amount
+
+        # 3. Calculate Taxes (on discounted subtotal)
+        subtotal_after_discount = (item_subtotal - discount_amount)
+        tax_rate = getattr(settings, 'TAX_RATE', Decimal('0.05'))
+        taxes_amount = (subtotal_after_discount * tax_rate).quantize(Decimal('0.01'))
+        self.taxes_amount = taxes_amount
+        
+        # 4. Calculate Final Total
+        final_total = (
+            subtotal_after_discount + 
+            self.delivery_fee + 
+            self.taxes_amount + 
+            self.rider_tip
+        ).quantize(Decimal('0.01'))
+        
+        if final_total < 0:
+            final_total = Decimal('0.00')
+            
+        self.final_total = final_total
+        
+        if save:
+            self.save(update_fields=[
+                'item_subtotal', 
+                'discount_amount', 
+                'taxes_amount', 
+                'final_total', 
+                'coupon'
+            ])
+
     class Meta:
         verbose_name = "Order"
         verbose_name_plural = "Orders"

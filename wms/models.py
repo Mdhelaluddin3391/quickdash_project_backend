@@ -112,23 +112,38 @@ class PickTask(TimestampedModel): # TimestampedModel se inherit karein
 def update_inventory_summary(inventory_summary_id):
     """
     WmsStock ke aadhar par StoreInventory.stock_quantity ko update karta hai.
+    --- UPDATED: Ab yeh race conditions ko handle karne ke liye transaction ka istemaal karta hai ---
     """
     try:
-        inv_summary = StoreInventory.objects.get(id=inventory_summary_id)
+        # --- START MODIFIED LOGIC ---
+        
+        # Ek naya database transaction shuru karein
+        with transaction.atomic():
+            # inv_summary row ko dhoondein aur usse LOCK karein
+            # Jab tak yeh transaction poora nahi hota, koi aur process is row ko update nahi kar sakta
+            inv_summary = StoreInventory.objects.select_for_update().get(id=inventory_summary_id)
 
-        total_qty = WmsStock.objects.filter(
-            inventory_summary=inv_summary
-        ).aggregate(
-            total=Sum('quantity')
-        )['total'] or 0
+            # Ab jab row locked hai, toh safely total calculate karein
+            total_qty = WmsStock.objects.filter(
+                inventory_summary=inv_summary
+            ).aggregate(
+                total=Sum('quantity')
+            )['total'] or 0
 
-        inv_summary.stock_quantity = total_qty
-        inv_summary.save(update_fields=['stock_quantity'])
+            # Locked row ko naye total ke saath update karein
+            inv_summary.stock_quantity = total_qty
+            inv_summary.save(update_fields=['stock_quantity'])
 
-        logger.info(f"WMS SYNC: Updated StoreInventory {inv_summary.id}: New stock {total_qty}") # <-- CHANGED
+            logger.info(f"WMS SYNC: Updated StoreInventory {inv_summary.id}: New stock {total_qty}")
+        
+        # --- END MODIFIED LOGIC ---
 
     except StoreInventory.DoesNotExist:
-        logger.error(f"WMS SYNC ERROR: StoreInventory not found for id {inventory_summary_id}") # <-- CHANGED
+        logger.error(f"WMS SYNC ERROR: StoreInventory not found for id {inventory_summary_id}")
+        pass
+    except Exception as e:
+        # Koi aur error (jaise database lock fail hona)
+        logger.error(f"WMS SYNC FAILED for id {inventory_summary_id}: {e}")
         pass
 
 @receiver([post_save, post_delete], sender=WmsStock)
@@ -137,5 +152,5 @@ def on_wms_stock_change(sender, instance, **kwargs):
     Jab bhi WmsStock (granular) badalta hai, 
     StoreInventory (summary) ko update karo.
     """
-    logger.info(f"WMS SYNC: WmsStock changed for inv_summary_id: {instance.inventory_summary_id}, updating summary...") # <-- CHANGED
+    logger.info(f"WMS SYNC: WmsStock changed for inv_summary_id: {instance.inventory_summary_id}, updating summary...")
     update_inventory_summary(instance.inventory_summary_id)
