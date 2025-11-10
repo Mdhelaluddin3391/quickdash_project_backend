@@ -261,25 +261,25 @@ RIDER_SEARCH_RADIUS_KM = 1
 
 """
 
-
-USE_S3 = False # Abhi ke liye False rakhein
+USE_S3 = True # Production mein isse True karein
 
 if USE_S3:
     # --- PRODUCTION STORAGE (S3) ---
-    AWS_ACCESS_KEY_ID = 'YOUR_AWS_ACCESS_KEY_ID' # os.getenv('AWS_ACCESS_KEY_ID')
-    AWS_SECRET_ACCESS_KEY = 'YOUR_AWS_SECRET_ACCESS_KEY' # os.getenv('AWS_SECRET_ACCESS_KEY')
-    AWS_STORAGE_BUCKET_NAME = 'your-quickdash-bucket-name' # os.getenv('AWS_STORAGE_BUCKET_NAME')
-    AWS_S3_REGION_NAME = 'your-region-e.g-ap-south-1' # os.getenv('AWS_S3_REGION_NAME')
+    AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
+    AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
+    AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME')
     AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
     AWS_S3_OBJECT_PARAMETERS = {'CacheControl': 'max-age=86400'}
     
-    # Static Files (CSS, JS)
-    STATICFILES_STORAGE = 'storages.backends.s3boto3.S3StaticStorage'
-    STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/static/'
+    # Static Files (CSS, JS) - Agar aap S3 par host karna chahte hain
+    # STATICFILES_STORAGE = 'storages.backends.s3boto3.S3StaticStorage'
+    # STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/static/'
     
-    # Media Files (User Uploads)
+    # Media Files (User Uploads - Zaroori)
     DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
     MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
+
 else:
     # --- LOCAL DEVELOPMENT STORAGE ---
     STATIC_URL = 'static/'

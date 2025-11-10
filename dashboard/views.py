@@ -8,7 +8,10 @@ from django.db.models import Sum, Count, Q
 from decimal import Decimal
 from django.db import transaction
 from django.conf import settings
-
+from wms.models import PickTask, WmsStock # PickTask import karein
+from wms.serializers import PickTaskSerializer # PickTaskSerializer import karein
+from accounts.permissions import IsStoreStaff
+from wms.permissions import IsStoreManager
 # Model Imports
 from orders.models import Order, OrderItem, Payment
 from inventory.models import StoreInventory
@@ -377,3 +380,29 @@ class CustomerLookupView(generics.GenericAPIView):
         
         serializer = self.get_serializer(user, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+
+class IssuePickTaskListView(generics.ListAPIView):
+    """
+    API: GET /api/dashboard/staff/issue-tasks/
+    Manager ko woh sabhi pick tasks dikhata hai jinpar picker
+    ne 'ISSUE' report kiya hai (e.g., "item nahi mila").
+    """
+    permission_classes = [IsAuthenticated, IsStoreManager]
+    serializer_class = PickTaskSerializer # Hum WMS serializer ko reuse karenge
+
+    def get_queryset(self):
+        # Staff ke store ko fetch karein
+        store = self.request.user.store_staff_profile.store
+        if not store:
+            return PickTask.objects.none()
+        
+        # Sirf uss store ke 'ISSUE' status waale tasks dhoondein
+        return PickTask.objects.filter(
+            order__store=store,
+            status=PickTask.PickStatus.ISSUE
+        ).select_related(
+            'variant__product', 
+            'location', 
+            'order'
+        ).order_by('updated_at') # Jo sabse naya issue hai, woh pehle

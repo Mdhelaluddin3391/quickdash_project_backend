@@ -15,7 +15,8 @@ from django.contrib.gis.measure import D
 from django.conf import settings
 from rest_framework.exceptions import NotFound # <-- Naya Import
 from rest_framework.parsers import MultiPartParser, FormParser # <-- Naya Import
-
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 # Model Imports
 from orders.models import Order, Payment
 from .models import RiderProfile, Delivery, RiderEarning, RiderCashDeposit

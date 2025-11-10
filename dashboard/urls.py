@@ -4,7 +4,8 @@ from .views import (
     ManagerOrderListView, 
     CancelOrderItemView,
     ManualPackView,
-    CustomerLookupView # <-- Naya view import karein
+    CustomerLookupView,
+    IssuePickTaskListView
 )
 
 urlpatterns = [
@@ -33,4 +34,8 @@ urlpatterns = [
     path('staff/customer-lookup/',
          CustomerLookupView.as_view(),
          name='staff-customer-lookup'),
+
+     path('staff/issue-tasks/',
+         IssuePickTaskListView.as_view(),
+         name='staff-issue-tasks'),
 ]
