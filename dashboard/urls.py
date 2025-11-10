@@ -5,7 +5,9 @@ from .views import (
     CancelOrderItemView,
     ManualPackView,
     CustomerLookupView,
-    IssuePickTaskListView
+    IssuePickTaskListView,
+    ResolveIssueTaskRetryView,
+    ResolveIssueTaskCancelView
 )
 
 urlpatterns = [
@@ -38,4 +40,16 @@ urlpatterns = [
      path('staff/issue-tasks/',
          IssuePickTaskListView.as_view(),
          name='staff-issue-tasks'),
+     
+     path('staff/issue-task/<int:pk>/retry/',
+         ResolveIssueTaskRetryView.as_view(),
+         name='staff-issue-task-retry'),
+
+     path('staff/issue-task/<int:pk>/cancel/',
+         ResolveIssueTaskCancelView.as_view(),
+         name='staff-issue-task-cancel'),
+
+
+     
 ]
+

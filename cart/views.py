@@ -181,7 +181,7 @@ class CartItemRemoveView(generics.DestroyAPIView):
         ).get(user=request.user)
         
         cart_serializer = CartSerializer(cart, context={'request': request})
-        return Response(cart_serializer.data, status=status.HTTP_200_OK)
+        return Response(cart_serializer.data, status=status.HTTP_204_NO_CONTENT)
 
 
 # --- NAYA VIEW ---

@@ -406,3 +406,157 @@ class IssuePickTaskListView(generics.ListAPIView):
             'location', 
             'order'
         ).order_by('updated_at') # Jo sabse naya issue hai, woh pehle
+    
+
+
+class ResolveIssueTaskRetryView(generics.GenericAPIView):
+    """
+    API: POST /api/dashboard/staff/issue-task/<pk>/retry/
+    Ek issue task ko 'PENDING' state mein reset karta hai (bina assigned picker ke).
+    """
+    permission_classes = [IsAuthenticated, IsStoreManager]
+
+    def post(self, request, *args, **kwargs):
+        store = request.user.store_staff_profile.store
+        pk = self.kwargs.get('pk')
+        
+        try:
+            # Task ko dhoondein aur lock karein
+            task = PickTask.objects.select_for_update().get(
+                id=pk, 
+                order__store=store, 
+                status=PickTask.PickStatus.ISSUE
+            )
+        except PickTask.DoesNotExist:
+            return Response({"error": "Issue task not found or already resolved."}, status=status.HTTP_404_NOT_FOUND)
+
+        with transaction.atomic():
+            # Task ko reset karein
+            task.status = PickTask.PickStatus.PENDING
+            task.assigned_to = None # Kisi ko bhi assign nahi hai (ab 'Request New Task' se pull hoga)
+            
+            # Manager ka note add karein
+            original_notes = task.picker_notes or "Issue reported"
+            task.picker_notes = f"[Issue Resolved by {request.user.username}: Task Retried] {original_notes}"
+            
+            task.save()
+
+        return Response(
+            {"success": "Task has been reset and re-queued for picking."}, 
+            status=status.HTTP_200_OK
+        )
+
+
+class ResolveIssueTaskCancelView(generics.GenericAPIView):
+    """
+    API: POST /api/dashboard/staff/issue-task/<pk>/cancel/
+    Ek issue task ko 'CANCELLED' mark karta hai aur item ko order se
+    (Fulfilment Cancel) remove karta hai.
+    """
+    permission_classes = [IsAuthenticated, IsStoreManager]
+
+    def post(self, request, *args, **kwargs):
+        store = request.user.store_staff_profile.store
+        pk = self.kwargs.get('pk')
+        
+        try:
+            with transaction.atomic():
+                # 1. Task ko dhoondein
+                task = PickTask.objects.select_for_update().get(
+                    id=pk, 
+                    order__store=store, 
+                    status=PickTask.PickStatus.ISSUE
+                )
+                
+                # 2. Corresponding OrderItem dhoondein
+                # (Maan rahe hain ki ek order mein ek variant ek hi baar hota hai)
+                order_item = OrderItem.objects.select_for_update().filter(
+                    order=task.order, 
+                    inventory_item__variant=task.variant
+                ).first()
+
+                if not order_item:
+                    raise Exception("Corresponding OrderItem not found.")
+
+                quantity_to_cancel = task.quantity_to_pick
+
+                if quantity_to_cancel > order_item.quantity:
+                    raise Exception(f"Cannot cancel {quantity_to_cancel}. Item quantity is only {order_item.quantity}.")
+
+                # 3. OrderItem aur Order ko Recalculate karein
+                # Yeh logic 'CancelOrderItemView' se liya gaya hai
+                
+                price_per_unit = order_item.price_at_order
+                total_item_price_to_cancel = price_per_unit * quantity_to_cancel
+                
+                order_item.quantity -= quantity_to_cancel
+                if order_item.quantity <= 0:
+                    order_item.delete() # Item ko poora delete karein
+                else:
+                    order_item.save() # Sirf quantity kam karein
+
+                # 4. Task ko 'CANCELLED' mark karein
+                task.status = PickTask.PickStatus.CANCELLED
+                original_notes = task.picker_notes or "Issue reported"
+                task.picker_notes = f"[Issue Resolved by {request.user.username}: Item Cancelled] {original_notes}"
+                task.save()
+
+                # 5. Order Total ko Recalculate karein
+                order = task.order
+                original_final_total = order.final_total
+                
+                # Naya Subtotal
+                new_subtotal = order.item_subtotal - total_item_price_to_cancel
+                
+                # Naya Discount (agar coupon tha)
+                new_discount = Decimal('0.00')
+                if order.coupon:
+                    # Check karein ki coupon abhi bhi valid hai (kam total par)
+                    if order.coupon.is_valid(new_subtotal)[0]:
+                        new_discount = order.coupon.calculate_discount(new_subtotal)
+                    # Agar valid nahi hai, toh discount 0 ho jayega
+                
+                # Naya Tax
+                tax_rate = getattr(settings, 'TAX_RATE', Decimal('0.05'))
+                new_taxable_amount = new_subtotal - new_discount
+                new_taxes = (new_taxable_amount * tax_rate).quantize(Decimal('0.01'))
+                
+                # Naya Final Total
+                new_final_total = (
+                    new_taxable_amount + new_taxes + 
+                    order.delivery_fee + order.rider_tip
+                ).quantize(Decimal('0.01'))
+                
+                total_to_refund = original_final_total - new_final_total
+                
+                # Order par save karein
+                order.item_subtotal = new_subtotal
+                order.discount_amount = new_discount
+                order.taxes_amount = new_taxes
+                order.final_total = new_final_total
+                order.save()
+
+            # 6. Transaction ke BAAD, Refund Trigger karein
+            if total_to_refund > 0:
+                payment = order.payments.filter(
+                    status=Order.PaymentStatus.SUCCESSFUL,
+                    payment_method='RAZORPAY'
+                ).first()
+                
+                if payment:
+                    refund_paise = int(total_to_refund * 100)
+                    process_razorpay_refund_task.delay(
+                        payment_id=payment.id, 
+                        amount_to_refund_paise=refund_paise, 
+                        is_partial_refund=True
+                    )
+                    print(f"Partial refund task (₹{total_to_refund}) for order {order.order_id} triggered from IssueResolve.")
+
+            # Poora updated order response mein bhejein
+            serializer = OrderDetailSerializer(order, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except PickTask.DoesNotExist:
+            return Response({"error": "Issue task not found or already resolved."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to cancel item: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
