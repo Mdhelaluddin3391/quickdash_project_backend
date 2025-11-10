@@ -1,5 +1,6 @@
 # quickdash_project/delivery/consumers.py
 import json
+import logging # <-- ADD
 from channels.generic.websocket import WebsocketConsumer
 from asgiref.sync import async_to_sync
 
@@ -8,6 +9,9 @@ from asgiref.sync import async_to_sync
 from orders.models import Order
 from delivery.models import RiderProfile
 # --- END SECURITY UPDATE ---
+
+# Setup logger
+logger = logging.getLogger(__name__) # <-- ADD
 
 
 class RiderNotificationConsumer(WebsocketConsumer):
@@ -47,7 +51,7 @@ class RiderNotificationConsumer(WebsocketConsumer):
         
         self.accept()
         # Log mein username print karein, channel_name nahi
-        print(f"Rider connected: {self.user.username}. Added to 'online_riders' and '{self.rider_group_name}'.")
+        logger.info(f"Rider connected: {self.user.username}. Added to 'online_riders' and '{self.rider_group_name}'.") # <-- CHANGED
 
 
     def disconnect(self, close_code):
@@ -70,7 +74,7 @@ class RiderNotificationConsumer(WebsocketConsumer):
             )
             # --- End STEP 4.2 ---
             
-            print(f"Rider disconnected: {self.user.username}. Removed from groups.")
+            logger.info(f"Rider disconnected: {self.user.username}. Removed from groups.") # <-- CHANGED
 
     # --- Group se message receive karne wale handlers ---
 
@@ -86,7 +90,7 @@ class RiderNotificationConsumer(WebsocketConsumer):
             'type': 'NEW_DELIVERY',
             'payload': delivery_data
         }))
-        print(f"Sent NEW_DELIVERY notification to {self.user.username}")
+        logger.info(f"Sent NEW_DELIVERY notification to {self.user.username}") # <-- CHANGED
 
 
 class CustomerTrackingConsumer(WebsocketConsumer):
@@ -116,8 +120,9 @@ class CustomerTrackingConsumer(WebsocketConsumer):
                 # Agar user kisi aur ka order track karne ki koshish kar raha hai
                 self.close()
                 return
-        except Exception:
+        except Exception as e:
             # Koi aur error (e.g., invalid order_id format)
+            logger.warning(f"CustomerTrackingConsumer connect error for {self.user.username} on order {self.order_id}: {e}") # <-- ADDED
             self.close()
             return
         # --- END SECURITY UPDATE ---
@@ -129,18 +134,18 @@ class CustomerTrackingConsumer(WebsocketConsumer):
         )
 
         self.accept()
-        print(f"Customer connected: {self.user.username}. Added to '{self.order_group_name}'.")
+        logger.info(f"Customer connected: {self.user.username}. Added to '{self.order_group_name}'.") # <-- CHANGED
 
     def disconnect(self, close_code):
         # --- SECURITY UPDATE ---
         # Agar user valid tha, tabhi group se discard karein
-        if hasattr(self, 'order_group_name'):
+        if hasattr(self, 'order_group_name') and hasattr(self, 'user'): # <-- Added user check
         # --- END SECURITY UPDATE ---
             async_to_sync(self.channel_layer.group_discard)(
                 self.order_group_name,
                 self.channel_name
             )
-            print(f"Customer disconnected: {self.user.username}. Removed from '{self.order_group_name}'.")
+            logger.info(f"Customer disconnected: {self.user.username}. Removed from '{self.order_group_name}'.") # <-- CHANGED
 
     def rider_location_update(self, event):
         """
@@ -154,4 +159,4 @@ class CustomerTrackingConsumer(WebsocketConsumer):
             'type': 'RIDER_LOCATION',
             'payload': location_data
         }))
-        print(f"Sent RIDER_LOCATION notification to {self.channel_name}")
+        logger.info(f"Sent RIDER_LOCATION notification to {self.channel_name}") # <-- CHANGED

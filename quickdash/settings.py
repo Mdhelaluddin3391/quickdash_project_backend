@@ -10,19 +10,17 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import logging # <-- ADD
 from pathlib import Path
 import platform
 import os
 from decouple import config
-from firebase_admin import credentials # <-- Naya import
 from dotenv import load_dotenv
-from dotenv import load_dotenv
-from pathlib import Path
-import platform
-import os
-from decouple import config
-import firebase_admin # <-- YEH LINE ADD KAREIN
-from firebase_admin import credentials 
+# from dotenv import load_dotenv # <-- REMOVED (Duplicate)
+# from pathlib import Path # <-- REMOVED (Duplicate)
+# import platform # <-- REMOVED (Duplicate)
+# import os # <-- REMOVED (Duplicate)
+# from decouple import config # <-- REMOVED (Duplicate)
 
 
 
@@ -39,18 +37,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = config('SECRET_KEY')
 
+# --- Firebase Admin SDK ---
+# Initialization logic has been moved to accounts/apps.py in the ready() method.
+# Hum yahaan sirf key file ka path define kar rahe hain.
 SERVICE_ACCOUNT_KEY_FILE = BASE_DIR / 'serviceAccountKey.json'
-if SERVICE_ACCOUNT_KEY_FILE.exists():
-    try:
-        cred = credentials.Certificate(SERVICE_ACCOUNT_KEY_FILE)
-        firebase_admin.initialize_app(cred)
-        print("Firebase Admin SDK Initialized Successfully.")
-    except Exception as e:
-        print(f"WARNING: Firebase Admin SDK failed to initialize: {e}")
-else:
-    print("WARNING: serviceAccountKey.json not found. Push notifications will not work.")
+# --- End Firebase Admin SDK ---
 
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DJANGO_DEBUG", "True") == "True"
 
 
@@ -77,7 +69,7 @@ INSTALLED_APPS = [
     
 
     # My Apps
-    'accounts',
+    'accounts.apps.AccountsConfig', # <-- UPDATED (To load ready() method)
     'store',
     'inventory',
     'cart',
@@ -259,32 +251,37 @@ ORDER_CANCELLATION_WINDOW = 300
 RIDER_BASE_DELIVERY_FEE = 30.00
 RIDER_SEARCH_RADIUS_KM = 1
 
-"""
+# --- Production Storage (S3) vs Local Storage ---
 
-USE_S3 = True # Production mein isse True karein
+# Production mein .env file mein USE_S3=True set karein
+USE_S3 = config('USE_S3', default=False, cast=bool) 
+
+# Setup logger (zaroori hai kyunki settings pehle load hoti hain)
+logger = logging.getLogger(__name__)
 
 if USE_S3:
     # --- PRODUCTION STORAGE (S3) ---
+    logger.info("STATUS: Using S3 for file storage (Production Mode)")
     AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
     AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
     AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
-    AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME')
+    AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='ap-south-1') # Default region
     AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
     AWS_S3_OBJECT_PARAMETERS = {'CacheControl': 'max-age=86400'}
-    
-    # Static Files (CSS, JS) - Agar aap S3 par host karna chahte hain
-    # STATICFILES_STORAGE = 'storages.backends.s3boto3.S3StaticStorage'
-    # STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/static/'
     
     # Media Files (User Uploads - Zaroori)
     DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
     MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
+    
+    # Agar static files bhi S3 par hain toh yeh line uncomment karein
+    # STATICFILES_STORAGE = 'storages.backends.s3boto3.S3StaticStorage'
+    # STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/static/'
+
 
 else:
     # --- LOCAL DEVELOPMENT STORAGE ---
+    logger.info("STATUS: Using local file storage (Development Mode)")
     STATIC_URL = 'static/'
     STATIC_ROOT = BASE_DIR / 'staticfiles'
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
-
-"""

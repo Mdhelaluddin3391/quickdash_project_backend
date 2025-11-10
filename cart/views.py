@@ -1,4 +1,5 @@
 # cart/views.py
+import logging # <-- ADD
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -13,6 +14,10 @@ from .serializers import (
     CartItemUpdateSerializer
 )
 from accounts.permissions import IsCustomer 
+
+# Setup logger
+logger = logging.getLogger(__name__) # <-- ADD
+
 
 class CartDetailView(generics.RetrieveAPIView):
     """
@@ -181,7 +186,8 @@ class CartItemRemoveView(generics.DestroyAPIView):
         ).get(user=request.user)
         
         cart_serializer = CartSerializer(cart, context={'request': request})
-        return Response(cart_serializer.data, status=status.HTTP_204_NO_CONTENT)
+        # 204 (No Content) ke bajaye 200 (OK) aur updated cart bhejna behtar hai
+        return Response(cart_serializer.data, status=status.HTTP_200_OK)
 
 
 # --- NAYA VIEW ---
@@ -200,7 +206,7 @@ class CartClearView(generics.GenericAPIView):
         if not created and cart.items.exists():
             # Agar cart hai aur usmein items hain, toh unhe delete karein
             cart.items.all().delete()
-            print(f"Cart cleared for user {request.user.username}")
+            logger.info(f"Cart cleared for user {request.user.username}") # <-- CHANGED
         
         # Optimized cart response (khaali cart)
         optimized_cart = Cart.objects.prefetch_related(

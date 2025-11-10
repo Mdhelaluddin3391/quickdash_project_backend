@@ -1,4 +1,5 @@
 # wms/models.py
+import logging # <-- ADD
 from django.db import models
 from django.conf import settings
 from store.models import ProductVariant, Store, TimestampedModel # TimestampedModel ko import karein
@@ -9,6 +10,10 @@ from inventory.models import StoreInventory # Yeh import zaroori hai
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.db.models import Sum
+
+# Setup logger
+logger = logging.getLogger(__name__) # <-- ADD
+
 
 class Location(TimestampedModel): # TimestampedModel se inherit karein
     """
@@ -120,10 +125,10 @@ def update_inventory_summary(inventory_summary_id):
         inv_summary.stock_quantity = total_qty
         inv_summary.save(update_fields=['stock_quantity'])
 
-        print(f"Updated StoreInventory {inv_summary.id}: New stock {total_qty}")
+        logger.info(f"WMS SYNC: Updated StoreInventory {inv_summary.id}: New stock {total_qty}") # <-- CHANGED
 
     except StoreInventory.DoesNotExist:
-        print(f"Error: StoreInventory not found for id {inventory_summary_id}")
+        logger.error(f"WMS SYNC ERROR: StoreInventory not found for id {inventory_summary_id}") # <-- CHANGED
         pass
 
 @receiver([post_save, post_delete], sender=WmsStock)
@@ -132,5 +137,5 @@ def on_wms_stock_change(sender, instance, **kwargs):
     Jab bhi WmsStock (granular) badalta hai, 
     StoreInventory (summary) ko update karo.
     """
-    print(f"WMS Stock changed for inventory_summary_id: {instance.inventory_summary_id}, updating summary...")
+    logger.info(f"WMS SYNC: WmsStock changed for inv_summary_id: {instance.inventory_summary_id}, updating summary...") # <-- CHANGED
     update_inventory_summary(instance.inventory_summary_id)

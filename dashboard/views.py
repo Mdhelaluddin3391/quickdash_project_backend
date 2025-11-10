@@ -1,21 +1,22 @@
 # File: dashboard/views.py (Cleaned Version)
 
+import logging # <-- ADD
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
-from django.db.models import Sum, Count, Q
+from django.db.models import Sum, Count, Q, F # <-- F IMPORT ADDED
 from decimal import Decimal
 from django.db import transaction
 from django.conf import settings
-from wms.models import PickTask, WmsStock # PickTask import karein
-from wms.serializers import PickTaskSerializer # PickTaskSerializer import karein
+# from wms.models import PickTask, WmsStock # <-- REMOVED (Guarded)
+from wms.serializers import PickTaskSerializer 
 from accounts.permissions import IsStoreStaff
 from wms.permissions import IsStoreManager
 # Model Imports
 from orders.models import Order, OrderItem, Payment
 from inventory.models import StoreInventory
-from wms.models import PickTask, WmsStock
+# from wms.models import PickTask, WmsStock # <-- REMOVED (Guarded)
 from delivery.models import Delivery
 from accounts.models import User
 from datetime import timedelta
@@ -38,7 +39,10 @@ from accounts.permissions import IsStoreStaff
 from wms.permissions import IsStoreManager
 
 # Helper Function
-from delivery.utils import notify_nearby_riders
+# from delivery.utils import notify_nearby_riders # <-- REMOVED (Guarded)
+
+# Setup logger
+logger = logging.getLogger(__name__) # <-- ADD
 
 
 class StaffDashboardView(generics.GenericAPIView):
@@ -82,6 +86,10 @@ class StaffDashboardView(generics.GenericAPIView):
             status=Order.OrderStatus.READY_FOR_PICKUP
         ).count()
 
+        # --- GUARDED IMPORT ---
+        from wms.models import PickTask
+        # --- END GUARDED IMPORT ---
+        
         # Pending Pick Tasks
         pending_pick_tasks = PickTask.objects.filter(
             order__store=store,
@@ -152,6 +160,10 @@ class CancelOrderItemView(generics.GenericAPIView):
     serializer_class = CancelOrderItemSerializer
 
     def post(self, request, *args, **kwargs):
+        # --- GUARDED IMPORTS ---
+        from wms.models import PickTask
+        # --- END GUARDED IMPORTS ---
+        
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -194,7 +206,8 @@ class CancelOrderItemView(generics.GenericAPIView):
                         tasks_to_update.append(task)
                         wms_qty_to_cancel = 0
                 
-                PickTask.objects.bulk_update(tasks_to_update, ['status', 'quantity_to_pick'])
+                if tasks_to_update:
+                    PickTask.objects.bulk_update(tasks_to_update, ['status', 'quantity_to_pick'])
                 
                 # BUG FIX: Agar quantity cancel karne ke liye PENDING task nahi mile
                 # (yaani task pehle hi COMPLETE ho chuka hai), toh error dein.
@@ -208,7 +221,8 @@ class CancelOrderItemView(generics.GenericAPIView):
                     if completed_tasks_exist:
                          raise Exception(f"FC Failed: Item '{order_item.variant_name}' pehle hi pick ho chuka hai.")
                     else:
-                         print(f"WARNING: FC ke liye PENDING pick tasks nahi mile. {wms_qty_to_cancel} quantity cancel nahi ho paayi.")
+                         # `print` ko `logger.warning` se replace karein
+                         logger.warning(f"WARNING: FC ke liye PENDING pick tasks nahi mile. {wms_qty_to_cancel} quantity cancel nahi ho paayi.")
 
                 # OrderItem aur Order ko Recalculate karein
                 price_per_unit = order_item.price_at_order
@@ -260,7 +274,8 @@ class CancelOrderItemView(generics.GenericAPIView):
                         amount_to_refund_paise=refund_paise, 
                         is_partial_refund=True
                     )
-                    print(f"Partial refund task (₹{total_to_refund}) for order {order.order_id} triggered.")
+                    # `print` ko `logger.info` se replace karein
+                    logger.info(f"Partial refund task (₹{total_to_refund}) for order {order.order_id} triggered.")
 
             serializer = OrderDetailSerializer(order, context={'request': request})
             return Response(serializer.data, status=status.HTTP_200_OK)
@@ -268,6 +283,8 @@ class CancelOrderItemView(generics.GenericAPIView):
         except OrderItem.DoesNotExist:
             return Response({"error": "Order item not found."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
+            # Error ko log karein
+            logger.error(f"CancelOrderItemView failed for order_item {order_item_id}: {str(e)}")
             return Response({"error": f"FC failed: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
         
 
@@ -280,6 +297,11 @@ class ManualPackView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated, IsStoreManager]
     
     def post(self, request, *args, **kwargs):
+        # --- GUARDED IMPORTS ---
+        from wms.models import PickTask, WmsStock
+        from delivery.utils import notify_nearby_riders
+        # --- END GUARDED IMPORTS ---
+        
         order_id = self.kwargs.get('order_id')
         staff_store = request.user.store_staff_profile.store
 
@@ -299,7 +321,8 @@ class ManualPackView(generics.GenericAPIView):
                 ).select_for_update()
 
                 if not pending_tasks.exists():
-                    print(f"Info: Manual pack for {order_id} ke liye koi PENDING task nahi mila. Sirf status change hoga.")
+                    # `print` ko `logger.info` se replace karein
+                    logger.info(f"Info: Manual pack for {order_id} ke liye koi PENDING task nahi mila. Sirf status change hoga.")
                 
                 tasks_to_complete = []
                 
@@ -324,7 +347,8 @@ class ManualPackView(generics.GenericAPIView):
                 
                 if tasks_to_complete:
                     PickTask.objects.bulk_update(tasks_to_complete, ['status', 'completed_at'])
-                    print(f"Manually packed {len(tasks_to_complete)} pick tasks for order {order_id}")
+                    # `print` ko `logger.info` se replace karein
+                    logger.info(f"Manually packed {len(tasks_to_complete)} pick tasks for order {order_id}")
 
                 order.status = Order.OrderStatus.READY_FOR_PICKUP
                 order.save()
@@ -343,6 +367,8 @@ class ManualPackView(generics.GenericAPIView):
         except Delivery.DoesNotExist:
             return Response({"error": "Delivery object for this order not found."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
+            # Error ko log karein
+            logger.error(f"ManualPackView failed for order {order_id}: {str(e)}")
             return Response({"error": f"Manual Pack failed: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
         
 
@@ -393,6 +419,10 @@ class IssuePickTaskListView(generics.ListAPIView):
     serializer_class = PickTaskSerializer # Hum WMS serializer ko reuse karenge
 
     def get_queryset(self):
+        # --- GUARDED IMPORT ---
+        from wms.models import PickTask
+        # --- END GUARDED IMPORT ---
+        
         # Staff ke store ko fetch karein
         store = self.request.user.store_staff_profile.store
         if not store:
@@ -418,6 +448,10 @@ class ResolveIssueTaskRetryView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated, IsStoreManager]
 
     def post(self, request, *args, **kwargs):
+        # --- GUARDED IMPORT ---
+        from wms.models import PickTask
+        # --- END GUARDED IMPORT ---
+        
         store = request.user.store_staff_profile.store
         pk = self.kwargs.get('pk')
         
@@ -457,6 +491,10 @@ class ResolveIssueTaskCancelView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated, IsStoreManager]
 
     def post(self, request, *args, **kwargs):
+        # --- GUARDED IMPORTS ---
+        from wms.models import PickTask
+        # --- END GUARDED IMPORTS ---
+        
         store = request.user.store_staff_profile.store
         pk = self.kwargs.get('pk')
         
@@ -551,7 +589,8 @@ class ResolveIssueTaskCancelView(generics.GenericAPIView):
                         amount_to_refund_paise=refund_paise, 
                         is_partial_refund=True
                     )
-                    print(f"Partial refund task (₹{total_to_refund}) for order {order.order_id} triggered from IssueResolve.")
+                    # `print` ko `logger.info` se replace karein
+                    logger.info(f"Partial refund task (₹{total_to_refund}) for order {order.order_id} triggered from IssueResolve.")
 
             # Poora updated order response mein bhejein
             serializer = OrderDetailSerializer(order, context={'request': request})
@@ -560,6 +599,8 @@ class ResolveIssueTaskCancelView(generics.GenericAPIView):
         except PickTask.DoesNotExist:
             return Response({"error": "Issue task not found or already resolved."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
+            # Error ko log karein
+            logger.error(f"ResolveIssueTaskCancelView failed for task {pk}: {str(e)}")
             return Response({"error": f"Failed to cancel item: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
         
 
@@ -686,7 +727,7 @@ class AnalyticsDashboardView(generics.GenericAPIView):
             avg_delivery_duration=Avg(F('delivered_at') - F('picked_up_at')),
             # Avg(At Store - Accepted) -> Pickup time
             avg_pickup_duration=Avg(F('at_store_at') - F('accepted_at'))
-        ).order_by('total_deliveries')
+        ).order_by('-total_deliveries') # <-- DESCENDING (total_deliveries) se sort karein
         
         # Serializer ke liye data ko format karein
         formatted_rider_performance = []

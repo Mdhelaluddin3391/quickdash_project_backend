@@ -1,5 +1,6 @@
 # quickdash_project_backend/delivery/tasks.py
 
+import logging # <-- ADD
 from celery import shared_task
 from django.utils import timezone
 from datetime import timedelta
@@ -11,6 +12,10 @@ from django.conf import settings # <-- Naya import
 
 from .models import Delivery, RiderProfile
 from .serializers import RiderDeliverySerializer
+
+# Setup logger
+logger = logging.getLogger(__name__) # <-- ADD
+
 
 @shared_task(name="retry_unassigned_deliveries")
 def retry_unassigned_deliveries():
@@ -32,10 +37,10 @@ def retry_unassigned_deliveries():
 
 
     if not stuck_deliveries.exists():
-        print(f"CELERY TASK (retry_unassigned): No stuck deliveries found. All good.")
+        logger.info(f"CELERY TASK (retry_unassigned): No stuck deliveries found. All good.") # <-- CHANGED
         return "No stuck deliveries found."
 
-    print(f"CELERY TASK (retry_unassigned): Found {stuck_deliveries.count()} stuck deliveries. Retrying...")
+    logger.info(f"CELERY TASK (retry_unassigned): Found {stuck_deliveries.count()} stuck deliveries. Retrying...") # <-- CHANGED
     
     channel_layer = get_channel_layer()
     
@@ -57,7 +62,7 @@ def retry_unassigned_deliveries():
         ).order_by('distance_to_store')[:10]
 
         if not nearby_available_riders.exists():
-            print(f"RETRY: Order {delivery.order.order_id} stuck, but still no riders nearby.")
+            logger.warning(f"RETRY: Order {delivery.order.order_id} stuck, but still no riders nearby.") # <-- CHANGED
             continue
 
         # Delivery data serialize karein
@@ -74,7 +79,7 @@ def retry_unassigned_deliveries():
                 }
             )
         
-        print(f"RETRY: Notified {len(nearby_available_riders)} riders for stuck order {delivery.order.order_id}")
+        logger.info(f"RETRY: Notified {len(nearby_available_riders)} riders for stuck order {delivery.order.order_id}") # <-- CHANGED
         
         # Delivery ka updated_at timestamp update karein
         # taaki yeh agle 1 min tak dobara check na ho

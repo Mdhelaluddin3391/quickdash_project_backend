@@ -1,5 +1,6 @@
 # delivery/models.py (Updated with RiderEarning logic)
 
+import logging # <-- ADD
 from django.db import models
 from django.conf import settings
 from django.contrib.gis.db import models as gis_models
@@ -10,6 +11,9 @@ from decimal import Decimal # <-- Import pehle se hai, acchi baat hai
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone # <-- YEH IMPORT ADD KAREIN
 from django.db.models import F
+
+# Setup logger
+logger = logging.getLogger(__name__) # <-- ADD
 
 
 class RiderProfile(TimestampedModel):
@@ -208,7 +212,7 @@ class Delivery(TimestampedModel):
                     send_fcm_push_notification_task.delay(user_id, title, body, data)
                 except Exception as e:
                     # Celery down hone par bhi server crash na ho
-                    print(f"Error triggering push notification task: {e}")
+                    logger.error(f"Error triggering push notification task: {e}") # <-- CHANGED
         
         
         # --- 7. NAYA RIDER EARNING LOGIC (Agar status badla hai) ---
@@ -229,11 +233,11 @@ class Delivery(TimestampedModel):
                     tip=tip,
                     total_earning=base_fee + tip
                 )
-                print(f"RiderEarning record created for Rider {self.rider.id} for Order {self.order.order_id}")
+                logger.info(f"RiderEarning record created for Rider {self.rider.id} for Order {self.order.order_id}") # <-- CHANGED
                 
             except Exception as e:
                 # Agar yeh fail bhi hota hai, toh order delivery ko na rokein
-                print(f"ERROR: Failed to create RiderEarning record: {e}")
+                logger.error(f"ERROR: Failed to create RiderEarning record for order {self.order.order_id}: {e}") # <-- CHANGED
         # --- END NAYA LOGIC ---
 
         # 8. Ab main Delivery object ko save karein (BUG FIX)

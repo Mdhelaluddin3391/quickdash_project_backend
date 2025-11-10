@@ -1,15 +1,15 @@
-# quickdash_project_backend/accounts/tasks.py
-
+import logging # <-- ADD
 from celery import shared_task
-import time
-from firebase_admin import messaging # <-- Naya import
-from django.contrib.auth import get_user_model # <-- Naya import
-import firebase_admin # <-- Naya import
-from firebase_admin import messaging # <-- Naya import
+# import time # <-- REMOVED (Unused)
+from firebase_admin import messaging # <-- Consolidated to one import
+from django.contrib.auth import get_user_model
+import firebase_admin
+# from firebase_admin import messaging # <-- REMOVED (Duplicate)
 import requests
 from django.conf import settings
 
 User = get_user_model()
+logger = logging.getLogger(__name__) # <-- ADD
 
 
 # accounts/tasks.py
@@ -20,19 +20,11 @@ def send_otp_sms_task(phone_number, otp):
     Ek background task jo OTP SMS bhejta hai (Updated with real API).
     """
     
-    # --- Puraana Code ---
-    # print(f"CELERY TASK: Sending SMS to {phone_number}...")
-    # print(f"CELERY TASK: Sent OTP {otp} to {phone_number}")
-    # return f"SMS sent to {phone_number}"
-    # --- End Puraana Code ---
-
-    # --- NAYA REAL API CALL (TWILIO EXAMPLE) ---
-    
     # Check karein ki settings mein keys hain ya nahi
     if not all([settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN, settings.TWILIO_PHONE_NUMBER]):
-        print(f"CELERY TASK (WARNING): Twilio settings missing. Falling back to console.")
+        logger.warning(f"Twilio settings missing for {phone_number}. Falling back to console.") # <-- CHANGED
         # FIX: Sensitive OTP ko log se hata diya
-        print(f"CELERY TASK (Mock SMS): OTP generated for {phone_number} (Dev only)")
+        logger.info(f"Mock SMS: OTP generated for {phone_number} (Dev only)") # <-- CHANGED
         return "Twilio settings missing. Mock SMS printed."
 
     try:
@@ -49,28 +41,27 @@ def send_otp_sms_task(phone_number, otp):
         # Basic Auth (Username = SID, Password = Auth Token)
         auth = (settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
 
-        print(f"CELERY TASK: Sending real SMS to {phone_number} via Twilio...")
+        logger.info(f"Sending real SMS to {phone_number} via Twilio...") # <-- CHANGED
         
         # API call karein
         response = requests.post(url, data=data, auth=auth, timeout=10) # 10 sec timeout
 
         # Check karein ki SMS gaya ya nahi
         if response.status_code == 201: # 201 = Created
-            print(f"CELERY TASK: Successfully sent SMS to {phone_number}. SID: {response.json().get('sid')}")
+            logger.info(f"Successfully sent SMS to {phone_number}. SID: {response.json().get('sid')}") # <-- CHANGED
             return f"SMS sent to {phone_number}"
         else:
             # Error hui toh log karein
-            print(f"CELERY TASK ERROR: Failed to send SMS to {phone_number}.")
-            print(f"Status Code: {response.status_code}, Response: {response.text}")
+            logger.error(f"Failed to send SMS to {phone_number}. Status: {response.status_code}, Response: {response.text}") # <-- CHANGED
             return f"Failed to send SMS: {response.text}"
 
     except requests.exceptions.RequestException as e:
         # Network error ya timeout
-        print(f"CELERY TASK ERROR (RequestException): {e}")
+        logger.error(f"SMS API RequestException for {phone_number}: {e}") # <-- CHANGED
         return f"SMS API Request Failed: {e}"
     except Exception as e:
         # Koi aur error
-        print(f"CELERY TASK ERROR (General): {e}")
+        logger.error(f"General SMS task error for {phone_number}: {e}") # <-- CHANGED
         return f"SMS task failed: {e}"
     # --- END NAYA CODE ---
 
@@ -84,17 +75,17 @@ def send_fcm_push_notification_task(user_id, title, body, data=None):
     
     # Check karein ki Firebase init hua hai ya nahi
     if not firebase_admin._DEFAULT_APP:
-        print("FCM TASK ERROR: Firebase App not initialized. Skipping.")
+        logger.error("FCM TASK ERROR: Firebase App not initialized. Skipping.") # <-- CHANGED
         return "Firebase App not initialized."
 
     try:
         user = User.objects.get(id=user_id)
     except User.DoesNotExist:
-        print(f"FCM TASK ERROR: User with id {user_id} not found.")
+        logger.warning(f"FCM TASK ERROR: User with id {user_id} not found.") # <-- CHANGED
         return f"User {user_id} not found."
         
     if not user.fcm_token:
-        print(f"FCM TASK INFO: User {user.username} has no FCM token. Skipping.")
+        logger.info(f"FCM TASK INFO: User {user.username} has no FCM token. Skipping.") # <-- CHANGED
         return f"User {user.username} has no FCM token."
 
     try:
@@ -130,15 +121,15 @@ def send_fcm_push_notification_task(user_id, title, body, data=None):
         # Step 3: Message Bhejein
         response = messaging.send(message)
         
-        print(f"Successfully sent push notification to {user.username}: {response}")
+        logger.info(f"Successfully sent push notification to {user.username}: {response}") # <-- CHANGED
         return f"Message sent to {user.username}"
 
     except Exception as e:
-        print(f"FCM TASK ERROR: Failed to send push to {user.username}: {e}")
+        logger.error(f"FCM TASK ERROR: Failed to send push to {user.username}: {e}") # <-- CHANGED
         # Agar token invalid hai, toh usse DB se nikaal dein
         if "registration-token-not-registered" in str(e) or \
            "invalid-registration-token" in str(e):
-            print(f"Removing invalid FCM token for user {user.username}")
+            logger.warning(f"Removing invalid FCM token for user {user.username}") # <-- CHANGED
             user.fcm_token = None
             user.save(update_fields=['fcm_token'])
             

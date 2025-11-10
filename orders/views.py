@@ -1,3 +1,4 @@
+import logging # <-- ADD
 from django.db import transaction
 from django.db.models import F, Avg
 from rest_framework import generics, status
@@ -16,29 +17,21 @@ import json
 import hmac         
 import hashlib      
 from rest_framework.views import APIView 
-from orders.models import OrderItem
+# from orders.models import OrderItem # <-- REMOVED (Duplicate)
+
 # Task Imports
-from wms.models import WmsStock, PickTask
-from accounts.models import StoreStaffProfile
+# (Guarded imports ko neeche functions mein move kar diya gaya hai)
 from .tasks import process_razorpay_refund_task
-from django.utils import timezone
+
 # Model Imports
 from .models import Order, OrderItem, Payment, Address, Coupon
-from cart.models import Cart
-from inventory.models import StoreInventory
-from delivery.models import Delivery 
-from .models import Order, OrderItem, Payment, Address, Coupon
-from cart.models import Cart, CartItem # <-- 'Cart' aur 'CartItem' ko yahaan import karein
+from cart.models import Cart, CartItem
 from inventory.models import StoreInventory
 from delivery.models import Delivery 
 
 # Serializer Imports
 from delivery.serializers import RiderDeliverySerializer 
-from cart.serializers import CartSerializer # <-- 'CartSerializer' ko import karein
-from .serializers import (
-    CheckoutSerializer,)
-# Serializer Imports
-from delivery.serializers import RiderDeliverySerializer 
+from cart.serializers import CartSerializer
 from .serializers import (
     CheckoutSerializer, 
     OrderDetailSerializer, 
@@ -49,14 +42,8 @@ from .serializers import (
 # Permission Imports
 from accounts.permissions import IsCustomer 
 
-
-# orders/views.py
-
-# ... (saare imports yahaan)
-from wms.models import WmsStock, PickTask
-from accounts.models import StoreStaffProfile
-from orders.models import OrderItem
-# ... (baaki saare imports)
+# Setup logger
+logger = logging.getLogger(__name__) # <-- ADD
 
 
 def process_successful_payment(order_id):
@@ -65,6 +52,10 @@ def process_successful_payment(order_id):
     (Stock cut, Delivery create, Coupon use count update)
     --- AB YEH WMS PICK TASKS BHI BANATA HAI ---
     """
+    # --- GUARDED IMPORTS (Circular dependency se bachne ke liye) ---
+    from wms.models import WmsStock, PickTask
+    from accounts.models import StoreStaffProfile
+    # --- END GUARDED IMPORTS ---
 
     try:
         # Order aur uske items ko pehle hi fetch kar lein
@@ -73,6 +64,7 @@ def process_successful_payment(order_id):
             status=Order.OrderStatus.PENDING
         )
     except Order.DoesNotExist:
+        logger.warning(f"process_successful_payment: Order {order_id} not found or already processed.") # <-- ADDED
         return False, "Order not found or already processed."
 
     try:
@@ -96,9 +88,13 @@ def process_successful_payment(order_id):
 
                 # Hum WMS flow ke liye stock check ko skip kar sakte hain,
                 # ya WmsStock summary par bharosa kar sakte hain.
-                inv_item = StoreInventory.objects.select_for_update().get(id=item.inventory_item.id)
-                if inv_item.stock_quantity < item.quantity:
-                    raise Exception(f"Item '{inv_item.variant.product.name}' is out of stock (Summary).")
+                
+                # --- FIX: Humne summary stock check (extra DB query) ko hata diya hai ---
+                # (Pichle turn mein yeh fix apply kiya gaya tha, use rakha gaya hai)
+                # inv_item = StoreInventory.objects.select_for_update().get(id=item.inventory_item.id)
+                # if inv_item.stock_quantity < item.quantity:
+                #    raise Exception(f"Item '{inv_item.variant.product.name}' is out of stock (Summary).")
+                # --- END FIX ---
 
                 # Yeh summary stock hai, WMS granular stock se alag hai.
                 # Hum isse update NAHI karenge, taaki WMS par control rahe.
@@ -155,9 +151,9 @@ def process_successful_payment(order_id):
                 staff_profile.last_task_assigned_at = timezone.now()
                 staff_profile.save(update_fields=['last_task_assigned_at'])
                     
-                print(f"Assigning PickTasks for Order {order_id} to Picker {picker_user.username} (Round-Robin)")
+                logger.info(f"Assigning PickTasks for Order {order_id} to Picker {picker_user.username} (Round-Robin)") # <-- CHANGED
             else:
-                print(f"WARNING: Order {order_id} ke liye koi available picker (can_pick_orders=True) nahi mila.")
+                logger.warning(f"WARNING: Order {order_id} ke liye koi available picker (can_pick_orders=True) nahi mila.") # <-- CHANGED
 
             tasks_created = 0
 
@@ -211,8 +207,8 @@ def process_successful_payment(order_id):
                 if quantity_to_pick > 0:
                     # CRITICAL: Summary stock (e.g., 10) aur granular stock (e.g., total 8) out of sync hain!
                     # Transaction ko rollback karna zaroori hai.
-                    print(f"CRITICAL SYNC ERROR: Order {order_id} - Item {inventory_item.variant.sku} (Qty: {item.quantity}).")
-                    print(f"Summary stock was {inv_summary_check.stock_quantity}, but granular stock only had {item.quantity - quantity_to_pick} available.")
+                    logger.critical(f"CRITICAL SYNC ERROR: Order {order_id} - Item {inventory_item.variant.sku} (Qty: {item.quantity}).") # <-- CHANGED
+                    logger.critical(f"Summary stock was {inv_summary_check.stock_quantity}, but granular stock only had {item.quantity - quantity_to_pick} available.") # <-- CHANGED
                     raise Exception(f"Stock sync error for {inventory_item.variant.sku}. Could not fulfill order. Please audit stock.")
                 
                 else:
@@ -220,13 +216,14 @@ def process_successful_payment(order_id):
                     PickTask.objects.bulk_create(pick_tasks_to_create)
                     tasks_created += len(pick_tasks_to_create)
 
-            print(f"WMS: Created {tasks_created} PickTasks for Order {order_id}")
+            logger.info(f"WMS: Created {tasks_created} PickTasks for Order {order_id}") # <-- CHANGED
             # --- NAYA WMS LOGIC END ---
 
 
         return True, delivery
 
     except Exception as e:
+        logger.error(f"process_successful_payment for {order_id} FAILED: {e}") # <-- ADDED
         order.status = Order.OrderStatus.FAILED
         order.payment_status = Order.PaymentStatus.FAILED
         order.save()
@@ -308,7 +305,7 @@ class CheckoutView(generics.GenericAPIView):
                 delivery_fee = settings.MIN_DELIVERY_FEE
         except AttributeError:
             delivery_fee = Decimal('20.00') 
-            print("Warning: Delivery fee settings not found in settings.py. Using default 20.00")
+            logger.warning("Delivery fee settings not found in settings.py. Using default 20.00") # <-- CHANGED
 
         # 5. Tax (Discounted price par)
         tax_rate = getattr(settings, 'TAX_RATE', Decimal('0.05')) # 5% default
@@ -362,6 +359,7 @@ class CheckoutView(generics.GenericAPIView):
             OrderItem.objects.bulk_create(order_items_to_create)
 
         except Exception as e:
+            logger.error(f"Checkout (Step 1 - Order Creation) failed for user {user.username}: {e}") # <-- ADDED
             return Response(
                 {"error": f"Order creation (Step 1) failed: {str(e)}"}, 
                 status=status.HTTP_400_BAD_REQUEST
@@ -386,6 +384,7 @@ class CheckoutView(generics.GenericAPIView):
                 success, result = process_successful_payment(order.order_id)
                 
                 if not success:
+                    logger.error(f"Checkout (COD) failed for order {order.order_id} during process_successful_payment: {result}") # <-- ADDED
                     return Response({"error": f"Failed to process COD order: {result}"}, status=status.HTTP_400_BAD_REQUEST)
                 
                 order_serializer = OrderDetailSerializer(order, context={'request': request})
@@ -395,6 +394,7 @@ class CheckoutView(generics.GenericAPIView):
                 }, status=status.HTTP_201_CREATED)
 
             except Exception as e:
+                logger.error(f"Checkout (COD) exception for order {order.order_id}: {e}") # <-- ADDED
                 order.status = Order.OrderStatus.FAILED
                 order.payment_status = Order.PaymentStatus.FAILED
                 order.save()
@@ -421,6 +421,7 @@ class CheckoutView(generics.GenericAPIView):
                     success, result = process_successful_payment(order.order_id)
                     
                     if not success:
+                         logger.error(f"Checkout (Free Order) failed for order {order.order_id}: {result}") # <-- ADDED
                          return Response({"error": f"Failed to process free order: {result}"}, status=status.HTTP_400_BAD_REQUEST)
                     
                     order_serializer = OrderDetailSerializer(order, context={'request': request})
@@ -429,6 +430,7 @@ class CheckoutView(generics.GenericAPIView):
                         "order_details": order_serializer.data
                     }, status=status.HTTP_201_CREATED)
                 except Exception as e:
+                     logger.error(f"Checkout (Free Order) exception for order {order.order_id}: {e}") # <-- ADDED
                      order.status = Order.OrderStatus.FAILED
                      order.payment_status = Order.PaymentStatus.FAILED
                      order.save()
@@ -467,6 +469,7 @@ class CheckoutView(generics.GenericAPIView):
                 }, status=status.HTTP_201_CREATED)
 
             except Exception as e:
+                logger.error(f"Checkout (Razorpay Order Create) exception for django_order {order.order_id}: {e}") # <-- ADDED
                 if 'order' in locals():
                     order.status = Order.OrderStatus.FAILED
                     order.payment_status = Order.PaymentStatus.FAILED
@@ -533,12 +536,14 @@ class PaymentVerificationView(generics.GenericAPIView):
                     status=status.HTTP_200_OK
                 )
             else:
+                logger.error(f"PaymentVerificationView: Payment verified but failed to process order {order.order_id}: {result}") # <-- ADDED
                 return Response(
                     {"error": f"Payment verified but failed to process order: {result}"}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
         except razorpay.errors.SignatureVerificationError as e:
+            logger.warning(f"PaymentVerificationView: SignatureVerificationError for RZP order {data['razorpay_order_id']}: {e}") # <-- ADDED
             payment.status = Order.PaymentStatus.FAILED
             order.status = Order.OrderStatus.FAILED
             order.payment_status = Order.PaymentStatus.FAILED
@@ -550,6 +555,7 @@ class PaymentVerificationView(generics.GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
+            logger.error(f"PaymentVerificationView: Unexpected error for RZP order {data['razorpay_order_id']}: {e}") # <-- ADDED
             return Response(
                 {"error": f"An unexpected error occurred: {str(e)}"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -592,6 +598,10 @@ class OrderCancelView(generics.GenericAPIView):
     serializer_class = OrderDetailSerializer
 
     def post(self, request, *args, **kwargs):
+        # --- GUARDED IMPORTS (Circular dependency se bachne ke liye) ---
+        from wms.models import WmsStock, PickTask
+        # --- END GUARDED IMPORTS ---
+        
         order_id = self.kwargs.get('order_id')
         try:
             order = Order.objects.get(
@@ -668,7 +678,7 @@ class OrderCancelView(generics.GenericAPIView):
                         status=PickTask.PickStatus.PENDING
                     )
                     updated_tasks_count = pending_tasks.update(status=PickTask.PickStatus.CANCELLED)
-                    print(f"Cancelled {updated_tasks_count} pending pick tasks for order {order.order_id}.")
+                    logger.info(f"Cancelled {updated_tasks_count} pending pick tasks for order {order.order_id}.") # <-- CHANGED
 
                     # 2. Jo tasks COMPLETED ho chuke hain, unka stock WMS mein wapas add karein
                     completed_tasks = PickTask.objects.filter(
@@ -690,18 +700,19 @@ class OrderCancelView(generics.GenericAPIView):
                                 stocks_to_update[stock_item.id] += task.quantity_to_pick
                             
                             except WmsStock.DoesNotExist:
-                                 print(f"Warning: Stock revert karte waqt WMS stock for task {task.id} nahi mila.")
+                                 logger.warning(f"Warning: Stock revert karte waqt WMS stock for task {task.id} nahi mila.") # <-- CHANGED
 
                         # Ab stock ko bulk update karein (F() expression ke saath)
                         if stocks_to_update:
                             for stock_id, qty in stocks_to_update.items():
                                 WmsStock.objects.filter(id=stock_id).update(quantity=F('quantity') + qty)
-                            print(f"Reverted stock for {len(stocks_to_update)} WMS locations.")
+                            logger.info(f"Reverted stock for {len(stocks_to_update)} WMS locations for order {order.order_id}.") # <-- CHANGED
                             # WmsStock ka signal StoreInventory summary ko automatically fix kar dega
                 
                 # --- END NAYA WMS LOGIC ---
 
         except Exception as e:
+            logger.error(f"Order cancellation failed during transaction for {order_id}: {e}") # <-- ADDED
             return Response(
                 {"error": f"Order cancellation failed during transaction: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST
@@ -715,9 +726,9 @@ class OrderCancelView(generics.GenericAPIView):
                     payment_id=payment_to_refund.id,
                     is_partial_refund=False # Full refund
                 )
-                print(f"Full Refund task for Payment ID {payment_to_refund.id} ko trigger kar diya gaya hai.")
+                logger.info(f"Full Refund task for Payment ID {payment_to_refund.id} ko trigger kar diya gaya hai.") # <-- CHANGED
             except Exception as e:
-                print(f"CRITICAL ERROR: Refund task trigger nahi ho paaya: {e}")
+                logger.critical(f"CRITICAL ERROR: Refund task trigger nahi ho paaya for order {order_id}: {e}") # <-- CHANGED
                 pass
 
         # 5. User ko response dein
@@ -757,13 +768,13 @@ class RazorpayWebhookView(APIView):
                 settings.RAZORPAY_WEBHOOK_SECRET
             )
         except razorpay.errors.SignatureVerificationError:
-            print("Webhook Signature Verification Failed")
+            logger.warning("Webhook Signature Verification Failed") # <-- CHANGED
             return Response(
                 {"error": "Invalid signature."}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
-            print(f"Webhook error: {e}")
+            logger.error(f"Webhook error (Header Verify): {e}") # <-- CHANGED
             return Response(
                 {"error": str(e)}, 
                 status=status.HTTP_400_BAD_REQUEST
@@ -789,7 +800,7 @@ class RazorpayWebhookView(APIView):
                     
                     # Agar order pehle hi PENDING hai (yaani process nahi hua)
                     if order.status == Order.OrderStatus.PENDING:
-                        print(f"Webhook: Processing PENDING order {order.order_id}")
+                        logger.info(f"Webhook: Processing PENDING order {order.order_id}") # <-- CHANGED
                         
                         # Payment ID update karein
                         payment.transaction_id = razorpay_payment_id
@@ -799,20 +810,20 @@ class RazorpayWebhookView(APIView):
                         success, result = process_successful_payment(order.order_id)
                         
                         if success:
-                            print(f"Webhook: Successfully processed order {order.order_id}")
+                            logger.info(f"Webhook: Successfully processed order {order.order_id}") # <-- CHANGED
                         else:
-                            print(f"Webhook: Failed to process order {order.order_id}: {result}")
+                            logger.error(f"Webhook: Failed to process order {order.order_id}: {result}") # <-- CHANGED
                     
                     elif order.status == Order.OrderStatus.CONFIRMED:
-                        print(f"Webhook: Order {order.order_id} is already confirmed. Ignoring.")
+                        logger.info(f"Webhook: Order {order.order_id} is already confirmed. Ignoring.") # <-- CHANGED
                         
                 except Payment.DoesNotExist:
-                    print(f"Webhook ERROR: Payment with RZP Order ID {razorpay_order_id} not found.")
+                    logger.warning(f"Webhook ERROR: Payment with RZP Order ID {razorpay_order_id} not found.") # <-- CHANGED
                     # Hum 404 nahi bhejenge, 200 hi bhejenge taaki Razorpay retry na kare
                     pass
             
             else:
-                print(f"Webhook: Received unhandled event '{event}'")
+                logger.info(f"Webhook: Received unhandled event '{event}'") # <-- CHANGED
 
             # Hamesha 200 OK return karein
             return Response(
@@ -821,9 +832,10 @@ class RazorpayWebhookView(APIView):
             )
             
         except json.JSONDecodeError:
+            logger.error("Webhook payload processing error: Invalid JSON") # <-- ADDED
             return Response({"error": "Invalid JSON payload."}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            print(f"Webhook payload processing error: {e}")
+            logger.error(f"Webhook payload processing error: {e}") # <-- CHANGED
             return Response({"error": "Internal server error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -981,6 +993,7 @@ class ReorderView(generics.GenericAPIView):
 
         except Exception as e:
             # Agar transaction fail hua (e.g., saare items unavailable)
+            logger.warning(f"Reorder failed for user {user.username}, order {order_id}: {e}") # <-- ADDED
             return Response(
                 {"error": str(e), "items_unavailable": items_unavailable},
                 status=status.HTTP_400_BAD_REQUEST
@@ -995,4 +1008,4 @@ class ReorderView(generics.GenericAPIView):
             "items_added": items_added,
             "items_unavailable": items_unavailable,
             "cart": serializer.data
-        }, status=status.HTTP_200_OK) 
+        }, status=status.HTTP_200_OK)

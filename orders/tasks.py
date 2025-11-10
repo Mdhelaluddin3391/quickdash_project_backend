@@ -1,5 +1,6 @@
 # orders/tasks.py
 
+import logging # <-- ADD
 from celery import shared_task
 from django.conf import settings
 import razorpay
@@ -7,8 +8,11 @@ from .models import Order, Payment
 from razorpay.errors import BadRequestError, ServerError
 from celery.exceptions import Retry
 # Import karein taaki Celery retries sahi se kaam karein
-import razorpay
-from celery.exceptions import Retry
+# import razorpay # <-- REMOVED (Duplicate)
+# from celery.exceptions import Retry # <-- REMOVED (Duplicate)
+
+# Setup logger
+logger = logging.getLogger(__name__) # <-- ADD
 
 @shared_task(
     bind=True, 
@@ -26,7 +30,7 @@ def process_razorpay_refund_task(self, payment_id, amount_to_refund_paise=None, 
     try:
         payment = Payment.objects.get(id=payment_id)
     except Payment.DoesNotExist:
-        print(f"Refund Task ERROR: Payment ID {payment_id} nahi mila. Task stop kar raha hoon.")
+        logger.error(f"Refund Task ERROR: Payment ID {payment_id} nahi mila. Task stop kar raha hoon.") # <-- CHANGED
         return f"Payment {payment_id} not found."
 
     order = payment.order
@@ -40,22 +44,22 @@ def process_razorpay_refund_task(self, payment_id, amount_to_refund_paise=None, 
         refund_amount_paise = amount_to_refund_paise
     
     if refund_amount_paise <= 0:
-        print(f"Refund Task INFO: Amount to refund is zero or less for Payment {payment_id}. Skipping.")
+        logger.info(f"Refund Task INFO: Amount to refund is zero or less for Payment {payment_id}. Skipping.") # <-- CHANGED
         return "Amount is zero."
     # --- END NAYA LOGIC ---
 
     # Agar refund pehle hi ho chuka hai (sirf full refund ke liye check karein)
     if not is_partial_refund and payment.status == Order.PaymentStatus.REFUNDED:
-        print(f"Refund Task INFO: Payment {payment_id} pehle hi 'REFUNDED' hai.")
+        logger.info(f"Refund Task INFO: Payment {payment_id} pehle hi 'REFUNDED' hai.") # <-- CHANGED
         return "Already refunded."
         
     # Agar status INITIATED nahi hai (sirf full refund ke liye check karein)
     if not is_partial_refund and payment.status != Order.PaymentStatus.REFUND_INITIATED:
-        print(f"Refund Task ERROR: Payment {payment_id} ka status 'REFUND_INITIATED' nahi hai.")
+        logger.error(f"Refund Task ERROR: Payment {payment_id} ka status 'REFUND_INITIATED' nahi hai.") # <-- CHANGED
         return f"Payment status is not {Order.PaymentStatus.REFUND_INITIATED}."
 
     try:
-        print(f"Refund Task: Razorpay refund shuru kar raha hoon (Payment ID: {payment.transaction_id})...")
+        logger.info(f"Refund Task: Razorpay refund shuru kar raha hoon (Payment ID: {payment.transaction_id})...") # <-- CHANGED
         
         client = razorpay.Client(
             auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
@@ -76,21 +80,21 @@ def process_razorpay_refund_task(self, payment_id, amount_to_refund_paise=None, 
                 payment.save(update_fields=['status'])
                 order.payment_status = Order.PaymentStatus.REFUNDED
                 order.save(update_fields=['payment_status'])
-                print(f"Refund Task SUCCESS: Order {order.order_id} (Full) successfully refund ho gaya.")
+                logger.info(f"Refund Task SUCCESS: Order {order.order_id} (Full) successfully refund ho gaya.") # <-- CHANGED
             else:
                 # Partial refund: Sirf log karein, status change na karein
-                print(f"Refund Task SUCCESS: Order {order.order_id} (Partial) of {refund_amount_paise} paise successfully refund ho gaya.")
+                logger.info(f"Refund Task SUCCESS: Order {order.order_id} (Partial) of {refund_amount_paise} paise successfully refund ho gaya.") # <-- CHANGED
             # --- END NAYA LOGIC ---
             
             return f"Refund successful for Order {order.order_id}"
         else:
-            print(f"Refund Task WARNING: Refund for {order.order_id} ka status '{refund_response.get('status')}' hai. Dobara try karein...")
+            logger.warning(f"Refund Task WARNING: Refund for {order.order_id} ka status '{refund_response.get('status')}' hai. Dobara try karein...") # <-- CHANGED
             raise Retry(exc=Exception(f"Refund status was: {refund_response.get('status')}"))
 
     except BadRequestError as e: # 'RazorpayError' ko 'BadRequestError' se replace karein (zyada specific)
         error_code = e.args[0].get('code') if e.args[0] else None
         if error_code == 'BAD_REQUEST_ERROR' and "already been refunded" in str(e):
-            print(f"Refund Task INFO: Payment {payment.id} pehle hi refund ho chuka hai (API se pata chala).")
+            logger.info(f"Refund Task INFO: Payment {payment.id} pehle hi refund ho chuka hai (API se pata chala).") # <-- CHANGED
             if not is_partial_refund:
                 payment.status = Order.PaymentStatus.REFUNDED
                 payment.save(update_fields=['status'])
@@ -98,9 +102,9 @@ def process_razorpay_refund_task(self, payment_id, amount_to_refund_paise=None, 
                 order.save(update_fields=['payment_status'])
             return "Payment was already refunded."
         
-        print(f"Refund Task ERROR (BadRequestError) for Order {order.order_id}: {e}")
+        logger.error(f"Refund Task ERROR (BadRequestError) for Order {order.order_id}: {e}") # <-- CHANGED
         raise self.retry(exc=e)
         
     except Exception as e:
-        print(f"Refund Task ERROR (General) for Order {order.order_id}: {e}")
+        logger.error(f"Refund Task ERROR (General) for Order {order.order_id}: {e}") # <-- CHANGED
         raise self.retry(exc=e)

@@ -1,4 +1,5 @@
 # delivery/views.py
+import logging # <-- ADD
 from django.db import transaction
 from django.utils import timezone
 from django.contrib.gis.db.models.functions import Distance
@@ -42,7 +43,10 @@ from orders.serializers import OrderDetailSerializer
 from accounts.permissions import IsRider, IsStoreStaff
 
 # Helper Function import
-from .utils import notify_nearby_riders
+# from .utils import notify_nearby_riders # <-- REMOVED (Guarded below)
+
+# Setup logger
+logger = logging.getLogger(__name__) # <-- ADD
 
 
 class RiderProfileView(generics.RetrieveUpdateAPIView):
@@ -93,7 +97,7 @@ class RiderLocationUpdateView(generics.UpdateAPIView):
         except Delivery.DoesNotExist:
             pass # No active delivery
         except Exception as e:
-            print(f"Error broadcasting location: {e}")
+            logger.error(f"Error broadcasting location for {instance.user.username}: {e}") # <-- CHANGED
         return Response({"success": "Location updated successfully."}, status=status.HTTP_200_OK)
 
 class AvailableDeliveryListView(generics.ListAPIView):
@@ -200,6 +204,7 @@ class UpdateDeliveryStatusView(generics.GenericAPIView):
             serializer = RiderDeliverySerializer(delivery)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Exception as e:
+            logger.error(f"UpdateDeliveryStatusView failed for delivery {delivery_id}: {e}") # <-- ADDED
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class CurrentDeliveryDetailView(generics.RetrieveAPIView):
@@ -248,6 +253,10 @@ class StaffUpdateOrderStatusView(generics.GenericAPIView):
     serializer_class = StaffOrderStatusUpdateSerializer
     lookup_field = 'order_id'
     def post(self, request, *args, **kwargs):
+        # --- GUARDED IMPORT ---
+        from .utils import notify_nearby_riders
+        # --- END GUARDED IMPORT ---
+        
         order_id = self.kwargs.get('order_id')
         staff_profile = request.user.store_staff_profile
         serializer = self.get_serializer(data=request.data)
@@ -281,7 +290,7 @@ class StaffUpdateOrderStatusView(generics.GenericAPIView):
                 # --- UPDATED CALL ---
                 notify_nearby_riders(delivery, context={'request': request})
             except Exception as e:
-                print(f"Error sending channel notification: {e}")
+                logger.error(f"Error sending channel notification: {e}") # <-- CHANGED
 
             return Response(
                 OrderDetailSerializer(order, context={'request': request}).data,

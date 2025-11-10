@@ -1,6 +1,4 @@
 from django.urls import path
-from .views import CheckoutView, OrderHistoryView, OrderDetailView
-from orders.models import Order, OrderItem, Payment
 from .views import (
     CheckoutView, 
     OrderHistoryView, 
@@ -11,7 +9,7 @@ from .views import (
     RiderRatingView,
     ReorderView
 )
-from delivery.models import Delivery
+
 
 urlpatterns = [
 

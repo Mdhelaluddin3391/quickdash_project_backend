@@ -1,5 +1,6 @@
 # quickdash_project_backend/accounts/views.py
 
+import logging
 import random
 from rest_framework import generics, status, permissions
 from rest_framework.response import Response
@@ -7,15 +8,15 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.core.cache import cache
 from django.db import transaction
 from django.utils import timezone
-from delivery.models import Delivery
-from wms.models import PickTask
-# Model Imports
-from .models import User, Address, CustomerProfile
-# Serializer Imports
 from django.conf import settings
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
-# --- END ADD ---
+
+# Model Imports
+from .models import User, Address, CustomerProfile
+# (Delivery aur PickTask imports ko runtime par guard kiya gaya hai)
+
+# Serializer Imports
 from .serializers import (
     OTPSerializer, 
     OTPVerifySerializer, 
@@ -33,6 +34,9 @@ from .permissions import IsCustomer
 
 # Task Imports
 from .tasks import send_otp_sms_task
+
+# Setup logger
+logger = logging.getLogger(__name__)
 
 
 def get_tokens_for_user(user):
@@ -91,9 +95,9 @@ class VerifyOTPView(generics.GenericAPIView):
         )
 
         if created:
-            print(f"New user created: {user.username}")
+            logger.info(f"New user created: {user.username}")
         else:
-            print(f"User logged in: {user.username}")
+            logger.info(f"User logged in: {user.username}")
 
         tokens = get_tokens_for_user(user)
 
@@ -187,32 +191,32 @@ class DeleteAccountView(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def delete(self, request, *args, **kwargs):
+        # --- Guarded Imports (Circular dependency se bachne ke liye) ---
+        from delivery.models import Delivery
+        from wms.models import PickTask
+        # --- End Guarded Imports ---
+        
         user = request.user
         
-        # Hum check karenge ki user ko "anonymize" karna hai ya sirf "deactivate"
         should_anonymize = True 
         
         try:
             with transaction.atomic():
-                # User object ko lock karein
                 user_lock = User.objects.select_for_update().get(pk=user.pk)
 
                 # Check 1: Kya user Rider hai?
                 if hasattr(user_lock, 'rider_profile'):
-                    # Check karein ki kya rider ne kabhi koi delivery ki hai
                     if Delivery.objects.filter(rider=user_lock.rider_profile).exists():
                         should_anonymize = False
-                        print(f"Rider {user_lock.username} ko deactivate kiya ja raha hai (work history hai).")
+                        logger.info(f"Deactivating Rider {user_lock.username} (has work history).")
 
                 # Check 2: Kya user Store Staff hai?
                 if hasattr(user_lock, 'store_staff_profile') and should_anonymize:
-                    # Check karein ki kya staff ne kabhi koi task pick kiya hai
                     if PickTask.objects.filter(assigned_to=user_lock).exists():
                         should_anonymize = False
-                        print(f"Staff {user_lock.username} ko deactivate kiya ja raha hai (work history hai).")
+                        logger.info(f"Deactivating Staff {user_lock.username} (has work history).")
 
                 # Ab action lein
-                
                 user_lock.is_active = False
                 user_lock.fcm_token = None
                 
@@ -220,7 +224,7 @@ class DeleteAccountView(generics.GenericAPIView):
                     # Case A: Yeh ek Customer hai (ya staff/rider bina history ke)
                     # Inka saara data "gumnaam" kar do
                     
-                    print(f"Customer {user_lock.username} ko anonymize kiya ja raha hai.")
+                    logger.info(f"Anonymizing Customer {user_lock.username}.")
                     
                     # 1. Saare addresses hamesha ke liye delete karein
                     user_lock.addresses.all().delete()
@@ -259,12 +263,11 @@ class DeleteAccountView(generics.GenericAPIView):
 
         except Exception as e:
             # Agar transaction fail hua
-            print(f"Account deletion failed for user {user.id}: {e}")
+            logger.error(f"Account deletion failed for user {user.id}: {e}")
             return Response(
                 {"error": "Account deletion failed. Please try again."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-# --- END UPDATED VIEW ---
         
 class UpdateFCMTokenView(generics.GenericAPIView):
     """
@@ -455,8 +458,8 @@ class StaffGoogleLoginView(generics.GenericAPIView):
 
         except ValueError as e:
             # Invalid token
-            print(f"Google Auth Error: {e}")
+            logger.warning(f"Google Auth Error: {e}") # <-- UPDATED from print
             return Response({"error": "Invalid Google token."}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            print(f"Google Login Error: {e}")
+            logger.error(f"Google Login Error: {e}") # <-- UPDATED from print
             return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

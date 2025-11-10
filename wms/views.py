@@ -1,3 +1,4 @@
+import logging # <-- ADD
 from django.shortcuts import render
 from rest_framework import generics, status
 from rest_framework.response import Response
@@ -13,7 +14,10 @@ from .serializers import (
 from .permissions import IsStoreManager, IsStorePicker
 
 # Naya Helper Function import
-from delivery.utils import notify_nearby_riders
+# from delivery.utils import notify_nearby_riders # <-- REMOVED (Guarded below)
+
+# Setup logger
+logger = logging.getLogger(__name__) # <-- ADD
 
 
 class ReceiveStockView(generics.GenericAPIView):
@@ -71,6 +75,12 @@ class PickTaskCompleteView(generics.GenericAPIView):
     serializer_class = PickTaskSerializer
 
     def post(self, request, *args, **kwargs):
+        # --- GUARDED IMPORTS ---
+        from delivery.utils import notify_nearby_riders
+        from orders.models import Order
+        from delivery.models import Delivery
+        # --- END GUARDED IMPORTS ---
+        
         pk = self.kwargs.get('pk')
         try:
             task = PickTask.objects.select_related('order__store__location').get(
@@ -110,9 +120,6 @@ class PickTaskCompleteView(generics.GenericAPIView):
                 delivery_object_for_notification = None 
 
                 if pending_tasks_count == 0:
-                    from orders.models import Order
-                    from delivery.models import Delivery
-
                     order.status = Order.OrderStatus.READY_FOR_PICKUP
                     order.save(update_fields=['status'])
 
@@ -121,7 +128,7 @@ class PickTaskCompleteView(generics.GenericAPIView):
                     delivery.save(update_fields=['status'])
 
                     delivery_object_for_notification = delivery 
-                    print(f"Order {order.order_id} is now READY_FOR_PICKUP.")
+                    logger.info(f"Order {order.order_id} is now READY_FOR_PICKUP.") # <-- CHANGED
 
             # Transaction ke BAAD
             if delivery_object_for_notification:
@@ -132,17 +139,20 @@ class PickTaskCompleteView(generics.GenericAPIView):
                         context={'request': request}
                     )
                 except Exception as e:
+                    logger.error(f"PickTaskCompleteView: Error calling notify_nearby_riders for order {order.order_id}: {e}") # <-- CHANGED
                     pass # Helper function ab errors ko internally log karta hai
 
             serializer = self.get_serializer(task)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         except WmsStock.DoesNotExist:
+             logger.warning(f"PickTaskComplete FAILED: WmsStock not found for task {pk}") # <-- ADDED
              return Response(
                 {"error": "Stock item not found at the specified location."}, 
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
+            logger.error(f"PickTaskComplete FAILED for task {pk}: {str(e)}") # <-- ADDED
             return Response(
                 {"error": f"Failed to complete task: {str(e)}"}, 
                 status=status.HTTP_400_BAD_REQUEST
@@ -180,7 +190,7 @@ class PickTaskReportIssueView(generics.GenericAPIView):
             task.picker_notes = serializer.validated_data['notes']
             task.save(update_fields=['status', 'picker_notes', 'updated_at'])
 
-        print(f"Picker {request.user.username} reported issue on Task {task.id}: {task.picker_notes}")
+        logger.info(f"Picker {request.user.username} reported issue on Task {task.id}: {task.picker_notes}") # <-- CHANGED
 
         # Response mein updated task bhejein
         response_serializer = PickTaskSerializer(task, context={'request': request})
@@ -227,13 +237,13 @@ class RequestNewTaskView(generics.GenericAPIView):
                 picker_profile.save(update_fields=['last_task_assigned_at'])
             
             # 4. Success response (poora task detail bhejein)
-            print(f"Task {task.id} auto-assigned to picker {request.user.username}")
+            logger.info(f"Task {task.id} auto-assigned to picker {request.user.username}") # <-- CHANGED
             serializer = self.get_serializer(task, context={'request': request})
             return Response(serializer.data, status=status.HTTP_200_OK)
         
         except Exception as e:
             # Shayad 'skip_locked=True' ki wajah se ya koi aur error
-            print(f"Error during new task request: {e}")
+            logger.warning(f"Error during new task request for {request.user.username}: {e}") # <-- CHANGED
             return Response(
                 {"error": "Could not assign task, please try again."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE # 503 matlab "thodi der baad try karo"
