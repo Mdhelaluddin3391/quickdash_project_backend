@@ -87,7 +87,7 @@ def process_successful_payment(order_id):
                  raise Exception("Order has no items to process.")
 
             # Stock cut logic (yeh pehle se tha)
-            inventory_items_to_update = []
+            # inventory_items_to_update = []
             for item in order_items:
                 # Note: YEH ABHI BHI SUMMARY (StoreInventory) SE STOCK CUT KAR RAHA HAI
                 # WMS ke baad, yeh logic badalna chahiye,
