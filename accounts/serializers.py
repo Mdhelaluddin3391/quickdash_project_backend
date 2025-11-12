@@ -18,8 +18,9 @@ class OTPVerifySerializer(serializers.Serializer):
 
 class StaffLoginSerializer(serializers.Serializer):
     """
-    Rider aur Store Staff ke login ke liye Serializer.
-    Yeh phone_number (jo unka username hai) aur password lega.
+    (UPDATED)
+    Sirf Store Staff (Manager/Picker) ke (Phone + Password) Login ke liye.
+    Riders ab iska istemaal nahi kar sakte.
     """
     phone_number = serializers.CharField(max_length=15, write_only=True)
     password = serializers.CharField(
@@ -35,15 +36,16 @@ class StaffLoginSerializer(serializers.Serializer):
         if not phone_number or not password:
             raise serializers.ValidationError("Phone number aur password dono zaroori hain.", code='authorization')
 
-        # Hum 'username' field mein phone number hi use kar rahe hain (VerifyOTPView ke logic ke anusaar)
         user = authenticate(request=self.context.get('request'), username=phone_number, password=password)
 
         if not user:
             raise serializers.ValidationError("Invalid credentials. Sahi phone number ya password daalein.", code='authorization')
 
-        # Check karein ki user staff ya rider hai
-        if not (hasattr(user, 'rider_profile') or hasattr(user, 'store_staff_profile')):
-            raise serializers.ValidationError("Aap is portal ke liye authorized nahi hain. Yeh login sirf staff aur riders ke liye hai.", code='authorization')
+        # --- YEH BADLAAV HAI ---
+        # Ab hum sirf 'store_staff_profile' check karenge
+        if not hasattr(user, 'store_staff_profile'):
+            raise serializers.ValidationError("Aap is portal ke liye authorized nahi hain. Yeh login sirf store staff ke liye hai.", code='authorization')
+        # --- BADLAAV KHATAM ---
         
         data['user'] = user
         return data
@@ -157,20 +159,22 @@ class FCMTokenSerializer(serializers.Serializer):
 
 class StaffPasswordResetRequestSerializer(serializers.Serializer):
     """
-    Step 1: Staff/Rider se phone number lene ke liye (Password reset).
+    (UPDATED)
+    Step 1: Sirf Staff ke phone number par password reset OTP bhejta hai.
     """
     phone_number = serializers.CharField(max_length=15)
 
     def validate_phone_number(self, value):
-        # Check karein ki user exist karta hai
         try:
             user = User.objects.get(phone_number=value)
         except User.DoesNotExist:
-            raise serializers.ValidationError("Is phone number se koi staff/rider account register nahi hai.")
+            raise serializers.ValidationError("Is phone number se koi staff account register nahi hai.")
         
-        # Check karein ki user sach mein staff ya rider hai
-        if not (hasattr(user, 'rider_profile') or hasattr(user, 'store_staff_profile')):
-             raise serializers.ValidationError("Yeh account staff ya rider account nahi hai.")
+        # --- YEH BADLAAV HAI ---
+        # Ab hum sirf 'store_staff_profile' check karenge
+        if not hasattr(user, 'store_staff_profile'):
+             raise serializers.ValidationError("Yeh account staff account nahi hai.")
+        # --- BADLAAV KHATAM ---
              
         return value
 
