@@ -1,0 +1,252 @@
+/* --- 0. Global & Header Styles --- */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+    background-color: #f9f9f9;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.site-header {
+    background-color: #fff;
+    border-bottom: 1px solid #e0e0e0;
+    padding: 10px 0;
+    margin-bottom: 10px;
+}
+
+.header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+}
+
+.logo {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.cart-link {
+    text-decoration: none;
+    font-size: 16px;
+    font-weight: 500;
+    color: #333;
+}
+
+.cart-count {
+    background-color: #28a745;
+    color: #fff;
+    font-size: 12px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-left: 4px;
+}
+
+/* यह .container क्लास अब .main-content-container को दी गई है */
+.main-content-container {
+    display: flex;
+}
+
+/* --- 1. Sub-category Sidebar (Left) --- */
+.sidebar {
+    width: 120px;
+    /* Fixed width for the sidebar */
+    height: 90vh;
+    /* Set height to 90% of viewport height */
+    background-color: #ffffff;
+    border-right: 1px solid #e0e0e0;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05);
+
+    /* This makes the sidebar scrollable if content overflows */
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    /* For smooth scrolling */
+    -webkit-overflow-scrolling: touch;
+}
+
+.sidebar-nav {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sidebar-nav li {
+    text-align: center;
+}
+
+.sidebar-nav a {
+    display: block;
+    padding: 16px 8px;
+    text-decoration: none;
+    color: #444;
+    font-size: 13px;
+    font-weight: 500;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.2s;
+}
+
+.sidebar-nav img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto 8px auto;
+}
+
+/* Style for the active/selected category */
+.sidebar-nav li.active a,
+.sidebar-nav a:hover {
+    background-color: #f0f5ff;
+    /* A light blue highlight */
+    color: #000;
+}
+
+/* --- 2. Product Grid (Right) --- */
+.product-grid-container {
+    flex-grow: 1;
+    /* Takes up the remaining space */
+    padding: 20px;
+
+    /* Make this area scrollable if products overflow */
+    height: 90vh;
+    overflow-y: auto;
+}
+
+.category-title {
+    font-size: 28px;
+    font-weight: 700;
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+.product-grid {
+    display: grid;
+    /* Creates a responsive grid: 
+         - Tries to fit columns of at least 180px
+         - Columns will stretch equally to fill the space
+       */
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 20px;
+}
+
+/* --- Individual Product Card --- */
+.product-card {
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    /* Stacks items vertically */
+    position: relative; /* zaroori hai discount badge ke liye */
+}
+
+.product-card .product-discount {
+    background-color: #e6f7ff;
+    color: #0056b3;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 4px;
+    position: absolute;
+    top: 8px;
+    left: 8px;
+}
+
+.product-card img {
+    width: 100%;
+    height: 140px;
+    /* Fixed height for image */
+    object-fit: contain;
+    /* Keeps aspect ratio */
+    margin-bottom: 8px;
+}
+
+.product-card .product-time {
+    font-size: 11px;
+    color: #555;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.product-card .product-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #222;
+    margin: 0 0 4px 0;
+    /* Clamp text to 2 lines */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    height: 40px;
+    /* Approx height for 2 lines */
+}
+
+.product-card .product-quantity {
+    font-size: 13px;
+    color: #666;
+    margin: 0 0 12px 0;
+    flex-grow: 1;
+    /* Pushes footer to the bottom */
+}
+
+.product-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #f0f0f0;
+    padding-top: 10px;
+}
+
+.product-price {
+    font-size: 15px;
+    font-weight: bold;
+    color: #000;
+}
+
+.product-price .old-price {
+    font-size: 12px;
+    text-decoration: line-through;
+    color: #888;
+    margin-right: 4px;
+}
+
+.add-btn {
+    background-color: #f7fef7;
+    color: #28a745;
+    /* Green text */
+    border: 1px solid #28a745;
+    /* Green border */
+    font-weight: bold;
+    font-size: 14px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+    text-decoration: none; /* Links के लिए जोड़ा गया */
+    text-align: center; /* Links के लिए जोड़ा गया */
+}
+
+.add-btn:hover {
+    background-color: #28a745;
+    color: #ffffff;
+}
+
+/* Out of Stock Button Style */
+.out-of-stock-btn {
+    background-color: #f0f0f0;
+    color: #888;
+    border: 1px solid #e0e0e0;
+    font-weight: bold;
+    font-size: 14px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    text-align: center;
+}

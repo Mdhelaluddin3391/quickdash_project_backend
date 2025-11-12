@@ -1,0 +1,193 @@
+/* --- 0. Global & Font Styles --- */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: "Poppins", sans-serif;
+    background-color: #f0f2f5; /* Light grey background */
+    color: #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+}
+
+/* --- 1. Auth Container & Card --- */
+.auth-container {
+    width: 100%;
+    padding: 20px;
+}
+
+.auth-card {
+    max-width: 420px;
+    margin: 0 auto;
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    padding: 30px 35px;
+    position: relative;
+}
+
+/* --- 2. Close Button --- */
+.close-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    font-size: 1.2rem;
+    color: #aaa;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+.close-btn:hover {
+    color: #333;
+}
+
+/* --- 3. Header --- */
+.auth-header {
+    text-align: center;
+    margin-bottom: 25px;
+}
+.header-icon {
+    width: 60px;
+    height: 60px;
+    margin-bottom: 10px;
+}
+.auth-header h2 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+.auth-header p {
+    font-size: 0.95rem;
+    color: #777;
+}
+
+/* --- 4. Form Styles --- */
+.auth-form {
+    display: flex;
+    flex-direction: column;
+}
+.auth-form label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.input-group {
+    display: flex;
+    align-items: center;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    overflow: hidden; /* Taki border radius sahi dikhe */
+    transition: border-color 0.2s;
+}
+.input-group:focus-within {
+    border-color: #00a94f;
+    box-shadow: 0 0 5px rgba(0, 169, 79, 0.1);
+}
+
+.country-code {
+    padding: 12px 15px;
+    background-color: #f9f9f9;
+    font-weight: 600;
+    color: #555;
+    border-right: 1px solid #ccc;
+}
+
+.input-group input[type="tel"] {
+    flex: 1;
+    border: none;
+    outline: none;
+    padding: 14px 15px;
+    font-size: 1rem;
+}
+
+/* OTP Form */
+.otp-info {
+    font-size: 0.9rem;
+    color: #555;
+    margin-bottom: 15px;
+}
+.otp-info strong {
+    color: #333;
+}
+.otp-info #change-number {
+    font-weight: 600;
+    color: #00a94f;
+    text-decoration: none;
+}
+
+.otp-inputs {
+    justify-content: space-between;
+    gap: 8px;
+    border: none;
+}
+.otp-box {
+    width: 45px;
+    height: 50px;
+    text-align: center;
+    font-size: 1.2rem;
+    font-weight: 600;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+}
+.otp-box:focus {
+    border-color: #00a94f;
+    outline: none;
+}
+
+.submit-btn {
+    padding: 15px;
+    background-color: #00a94f;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.submit-btn:hover {
+    background-color: #008a3f;
+}
+
+.resend-timer {
+    text-align: center;
+    margin-top: 15px;
+    font-size: 0.9rem;
+    color: #777;
+}
+
+/* --- 5. Footer --- */
+.auth-footer {
+    text-align: center;
+    margin-top: 25px;
+    font-size: 0.8rem;
+    color: #999;
+}
+.auth-footer a {
+    color: #777;
+    font-weight: 500;
+    text-decoration: none;
+}
+.auth-footer a:hover {
+    text-decoration: underline;
+}
+
+/* Media Query for smaller screens */
+@media (max-width: 480px) {
+    .auth-card {
+        padding: 25px 20px;
+    }
+    .otp-inputs {
+        gap: 5px;
+    }
+    .otp-box {
+        width: 40px;
+        height: 45px;
+    }
+}
