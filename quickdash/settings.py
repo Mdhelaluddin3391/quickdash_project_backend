@@ -186,7 +186,11 @@ REST_FRAMEWORK = {
 # --- GeoDjango Configuration for Linux ---
 
 if platform.system() == "Linux":
-    os.environ['GDAL_LIBRARY_PATH'] = '/usr/lib/libgdal.so'
+    # NAYA SAHI PATH YAHAN DAALEIN
+    os.environ['GDAL_LIBRARY_PATH'] = '/usr/lib/x86_64-linux-gnu/libgdal.so'
+# NAYA SAHI PATH YAHAN DAALEIN
+GDAL_LIBRARY_PATH = os.getenv('GDAL_LIBRARY_PATH', '/usr/lib/x86_64-linux-gnu/libgdal.so')
+
 
 
 CORS_ALLOWED_ORIGINS = [
@@ -242,7 +246,7 @@ TWILIO_AUTH_TOKEN = config('TWILIO_AUTH_TOKEN', default=None)
 TWILIO_PHONE_NUMBER = config('TWILIO_PHONE_NUMBER', default=None)
 # --- END Naya Code ---
 
-GDAL_LIBRARY_PATH = os.getenv('GDAL_LIBRARY_PATH', '/usr/lib/libgdal.so')
+
 
 
 # Delivery & Order Settings

@@ -11,7 +11,9 @@ from .models import RiderProfile, Delivery, RiderEarning # <-- 'RiderEarning' ya
 from .models import RiderProfile, Delivery, RiderEarning, RiderCashDeposit, RiderApplication, RiderDocument
 from rest_framework.exceptions import ValidationError
 
-
+from .models import RiderProfile, Delivery, RiderEarning, RiderCashDeposit # <-- 'RiderCashDeposit' add karein
+from .models import RiderProfile, Delivery, RiderEarning # <-- 'RiderEarning' yahaan add karein
+from .models import RiderProfile, Delivery, RiderEarning, RiderCashDeposit, RiderApplication, RiderDocument
 
 class RiderProfileUpdateSerializer(serializers.ModelSerializer):
     """

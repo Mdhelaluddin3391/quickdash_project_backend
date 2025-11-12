@@ -231,9 +231,9 @@ class DashboardAPITests(APITestCase):
         # Order total check karein (recalculate ho gaya)
         self.order.refresh_from_db()
         # Subtotal = 100, Tax = 5 (0.05*100), Total = 105
-        self.assertEqual(order.item_subtotal, Decimal('100.00'))
-        self.assertEqual(order.taxes_amount, Decimal('5.00'))
-        self.assertEqual(order.final_total, Decimal('105.00')) # 100 (subtotal) + 5 (tax)
+        self.assertEqual(self.order.item_subtotal, Decimal('100.00'))
+        self.assertEqual(self.order.taxes_amount, Decimal('5.00'))
+        self.assertEqual(self.order.final_total, Decimal('105.00'))# 100 (subtotal) + 5 (tax)
 
         # PickTask check karein (update ho gaya)
         self.pick_task.refresh_from_db()
