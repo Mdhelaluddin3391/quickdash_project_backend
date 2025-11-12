@@ -15,7 +15,10 @@ from pathlib import Path
 import platform
 import os
 from decouple import config
+# from dotenv import load_dotenvimport os
 from dotenv import load_dotenv
+import os
+
 # from dotenv import load_dotenv # <-- REMOVED (Duplicate)
 # from pathlib import Path # <-- REMOVED (Duplicate)
 # import platform # <-- REMOVED (Duplicate)
@@ -239,6 +242,7 @@ TWILIO_AUTH_TOKEN = config('TWILIO_AUTH_TOKEN', default=None)
 TWILIO_PHONE_NUMBER = config('TWILIO_PHONE_NUMBER', default=None)
 # --- END Naya Code ---
 
+GDAL_LIBRARY_PATH = os.getenv('GDAL_LIBRARY_PATH', '/usr/lib/libgdal.so')
 
 
 # Delivery & Order Settings
@@ -259,29 +263,29 @@ USE_S3 = config('USE_S3', default=False, cast=bool)
 # Setup logger (zaroori hai kyunki settings pehle load hoti hain)
 logger = logging.getLogger(__name__)
 
-if USE_S3:
-    # --- PRODUCTION STORAGE (S3) ---
-    logger.info("STATUS: Using S3 for file storage (Production Mode)")
-    AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
-    AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
-    AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
-    AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='ap-south-1') # Default region
-    AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
-    AWS_S3_OBJECT_PARAMETERS = {'CacheControl': 'max-age=86400'}
+# if USE_S3:
+#     # --- PRODUCTION STORAGE (S3) ---
+#     logger.info("STATUS: Using S3 for file storage (Production Mode)")
+#     AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
+#     AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
+#     AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
+#     AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='ap-south-1') # Default region
+#     AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
+#     AWS_S3_OBJECT_PARAMETERS = {'CacheControl': 'max-age=86400'}
     
-    # Media Files (User Uploads - Zaroori)
-    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-    MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
+#     # Media Files (User Uploads - Zaroori)
+#     DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+#     MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
     
-    # Agar static files bhi S3 par hain toh yeh line uncomment karein
-    # STATICFILES_STORAGE = 'storages.backends.s3boto3.S3StaticStorage'
-    # STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/static/'
+#     # Agar static files bhi S3 par hain toh yeh line uncomment karein
+#     # STATICFILES_STORAGE = 'storages.backends.s3boto3.S3StaticStorage'
+#     # STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/static/'
 
 
-else:
-    # --- LOCAL DEVELOPMENT STORAGE ---
-    logger.info("STATUS: Using local file storage (Development Mode)")
-    STATIC_URL = 'static/'
-    STATIC_ROOT = BASE_DIR / 'staticfiles'
-    MEDIA_URL = '/media/'
-    MEDIA_ROOT = BASE_DIR / 'media'
+# else:
+#     # --- LOCAL DEVELOPMENT STORAGE ---
+#     logger.info("STATUS: Using local file storage (Development Mode)")
+#     STATIC_URL = 'static/'
+#     STATIC_ROOT = BASE_DIR / 'staticfiles'
+#     MEDIA_URL = '/media/'
+#     MEDIA_ROOT = BASE_DIR / 'media'
