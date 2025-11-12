@@ -18,12 +18,8 @@ from decouple import config
 # from dotenv import load_dotenvimport os
 from dotenv import load_dotenv
 import os
+from decimal import Decimal # <-- YEH NAYA IMPORT HAI
 
-# from dotenv import load_dotenv # <-- REMOVED (Duplicate)
-# from pathlib import Path # <-- REMOVED (Duplicate)
-# import platform # <-- REMOVED (Duplicate)
-# import os # <-- REMOVED (Duplicate)
-# from decouple import config # <-- REMOVED (Duplicate)
 
 
 
@@ -49,7 +45,9 @@ SERVICE_ACCOUNT_KEY_FILE = BASE_DIR / 'serviceAccountKey.json'
 DEBUG = os.getenv("DJANGO_DEBUG", "True") == "True"
 
 
-ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "").split(",")
+# --- FIX 1: ALLOWED_HOSTS ko .env se load karein ---
+# .env file mein: DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,your-domain.com
+ALLOWED_HOSTS = config('DJANGO_ALLOWED_HOSTS', default='127.0.0.1,localhost').split(',')
 
 
 # Application definition
@@ -86,13 +84,15 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    # --- FIX 2: CORS ko CommonMiddleware se pehle rakhein ---
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 
-    'corsheaders.middleware.CorsMiddleware',
+    # 'corsheaders.middleware.CorsMiddleware', # <-- Yahaan se move kar diya
 ]
 
 ROOT_URLCONF = 'quickdash.urls'
@@ -154,7 +154,8 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# --- TIME_ZONE ko config se lein (Best Practice) ---
+TIME_ZONE = config('TIME_ZONE', default='UTC')
 
 USE_I18N = True
 
@@ -192,17 +193,27 @@ if platform.system() == "Linux":
 GDAL_LIBRARY_PATH = os.getenv('GDAL_LIBRARY_PATH', '/usr/lib/x86_64-linux-gnu/libgdal.so')
 
 
+# --- FIX 3: CORS ko .env se load karein ---
+# .env file mein: DJANGO_CORS_ALLOWED_ORIGINS=http://localhost:3000,https://your-frontend.com
+CORS_ALLOWED_ORIGINS = config('DJANGO_CORS_ALLOWED_ORIGINS', default='').split(',')
+# Agar aapka .env variable set nahi hai, toh development ke liye default set karein
+if not config('DJANGO_CORS_ALLOWED_ORIGINS', default=None):
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
 
+# --- FIX 4: Redis (Cache, Celery, Channels) ko .env se load karein ---
+# .env file mein: REDIS_URL=redis://your-production-redis-url:port
+# Hum 3 alag-alag database numbers ka istemaal karenge (0, 1, 2)
+DEFAULT_REDIS_URL = 'redis://127.0.0.1:6379'
 
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/1", 
+        # Production mein 'REDIS_URL_CACHE' set karein (e.g., redis://.../1)
+        "LOCATION": config('REDIS_URL_CACHE', default=f'{DEFAULT_REDIS_URL}/1'), 
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         }
@@ -210,26 +221,31 @@ CACHES = {
 }
 
 
-CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0' 
-CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
+# Production mein 'CELERY_BROKER_URL' set karein (e.g., redis://.../0)
+CELERY_BROKER_URL = config('CELERY_BROKER_URL', default=f'{DEFAULT_REDIS_URL}/0')
+CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default=f'{DEFAULT_REDIS_URL}/0')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Kolkata' 
 
 # CHANNELS (WebSockets)
+# Production mein 'CHANNELS_REDIS_URL' set karein (e.g., redis://.../2)
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)], 
+            "hosts": [config('CHANNELS_REDIS_URL', default=f'{DEFAULT_REDIS_URL}/2')], 
         },
     },
 }
+# --- END FIX 4 ---
+
 
 # --- Staff Google Login Settings ---
 # Yeh aapka company domain hai
-COMPANY_GOOGLE_DOMAIN = "Qickdash.com" 
+# --- FIX 5: Google Domain ko .env se load karein ---
+COMPANY_GOOGLE_DOMAIN = config("COMPANY_GOOGLE_DOMAIN", default="Qickdash.com") 
 
 # Yeh aapko Google Cloud Console se milega
 # (Frontend (Web/Android) wala Client ID yahaan daalein)
@@ -249,15 +265,19 @@ TWILIO_PHONE_NUMBER = config('TWILIO_PHONE_NUMBER', default=None)
 
 
 
-# Delivery & Order Settings
-BASE_DELIVERY_FEE = 20.00  # (Aapki default fee)
-FEE_PER_KM = 5.00         # (Aapki per-km fee)
-MIN_DELIVERY_FEE = 20.00  # (Minimum fee)
-MAX_DELIVERY_FEE = 100.00 # (Maximum fee)
-TAX_RATE = 0.05           # (e.g., 5% GST)
-ORDER_CANCELLATION_WINDOW = 300
-RIDER_BASE_DELIVERY_FEE = 30.00
+# --- FIX 6: Business Logic ko .env se load karein ---
+# (Decimal import zaroori hai)
+BASE_DELIVERY_FEE = config('BASE_DELIVERY_FEE', default='20.00', cast=Decimal)
+FEE_PER_KM = config('FEE_PER_KM', default='5.00', cast=Decimal)
+MIN_DELIVERY_FEE = config('MIN_DELIVERY_FEE', default='20.00', cast=Decimal)
+MAX_DELIVERY_FEE = config('MAX_DELIVERY_FEE', default='100.00', cast=Decimal)
+TAX_RATE = config('TAX_RATE', default='0.05', cast=Decimal) # 5%
+ORDER_CANCELLATION_WINDOW = config('ORDER_CANCELLATION_WINDOW', default=300, cast=int) # 5 minutes
+RIDER_BASE_DELIVERY_FEE = config('RIDER_BASE_DELIVERY_FEE', default='30.00', cast=Decimal)
 RIDER_SEARCH_RADIUS_KM = config('RIDER_SEARCH_RADIUS_KM', default=1.0, cast=float)
+LOW_STOCK_THRESHOLD = config('LOW_STOCK_THRESHOLD', default=10, cast=int) # Dashboard ke liye
+# --- END FIX 6 ---
+
 
 # --- Production Storage (S3) vs Local Storage ---
 
@@ -267,29 +287,35 @@ USE_S3 = config('USE_S3', default=False, cast=bool)
 # Setup logger (zaroori hai kyunki settings pehle load hoti hain)
 logger = logging.getLogger(__name__)
 
-# if USE_S3:
-#     # --- PRODUCTION STORAGE (S3) ---
-#     logger.info("STATUS: Using S3 for file storage (Production Mode)")
-#     AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
-#     AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
-#     AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
-#     AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='ap-south-1') # Default region
-#     AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
-#     AWS_S3_OBJECT_PARAMETERS = {'CacheControl': 'max-age=86400'}
+
+"""
+# --- FIX 7: S3 Logic ko UNCOMMENT karein ---
+if USE_S3:
+    # --- PRODUCTION STORAGE (S3) ---
+    logger.info("STATUS: Using S3 for file storage (Production Mode)")
+    AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
+    AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
+    AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='ap-south-1') # Default region
+    AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
+    AWS_S3_OBJECT_PARAMETERS = {'CacheControl': 'max-age=86400'}
     
-#     # Media Files (User Uploads - Zaroori)
-#     DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-#     MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
+    # Media Files (User Uploads - Zaroori)
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
     
-#     # Agar static files bhi S3 par hain toh yeh line uncomment karein
-#     # STATICFILES_STORAGE = 'storages.backends.s3boto3.S3StaticStorage'
-#     # STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/static/'
+    # Agar static files bhi S3 par hain toh yeh line uncomment karein
+    # STATICFILES_STORAGE = 'storages.backends.s3boto3.S3StaticStorage'
+    # STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/static/'
 
 
-# else:
-#     # --- LOCAL DEVELOPMENT STORAGE ---
-#     logger.info("STATUS: Using local file storage (Development Mode)")
-#     STATIC_URL = 'static/'
-#     STATIC_ROOT = BASE_DIR / 'staticfiles'
-#     MEDIA_URL = '/media/'
-#     MEDIA_ROOT = BASE_DIR / 'media'
+else:
+    # --- LOCAL DEVELOPMENT STORAGE ---
+    logger.info("STATUS: Using local file storage (Development Mode)")
+    STATIC_URL = 'static/'
+    STATIC_ROOT = BASE_DIR / 'staticfiles'
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = BASE_DIR / 'media'
+# --- END FIX 7 ---
+
+"""

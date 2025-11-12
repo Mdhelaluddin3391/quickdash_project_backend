@@ -296,16 +296,20 @@ class CheckoutView(generics.GenericAPIView):
         try:
             if store.location and address.location:
                 distance_km = Distance(store.location, address.location).km
+                # --- FIX: Settings se load karein ---
                 base_fee = settings.BASE_DELIVERY_FEE
                 fee_per_km = settings.FEE_PER_KM
                 delivery_fee = base_fee + (Decimal(distance_km) * fee_per_km)
                 delivery_fee = min(delivery_fee, settings.MAX_DELIVERY_FEE)
                 delivery_fee = max(delivery_fee, settings.MIN_DELIVERY_FEE)
+                # --- END FIX ---
             else:
                 delivery_fee = settings.MIN_DELIVERY_FEE
         except AttributeError:
-            delivery_fee = Decimal('20.00') 
-            logger.warning("Delivery fee settings not found in settings.py. Using default 20.00")
+            # --- FIX: Hard-coded fallback ko settings se lein ---
+            delivery_fee = settings.MIN_DELIVERY_FEE 
+            logger.warning(f"Delivery fee settings not found. Using default MIN_DELIVERY_FEE: {delivery_fee}")
+            # --- END FIX ---
 
         # --- BAAKI SABHI CALCULATIONS (DISCOUNT, TAX, FINAL TOTAL) YAHAN SE HATA DIYE GAYE HAIN ---
         
@@ -622,11 +626,14 @@ class OrderCancelView(generics.GenericAPIView):
         # 2. Time window check karein (Sirf CONFIRMED/PREPARING par)
         if order.status in [Order.OrderStatus.CONFIRMED, Order.OrderStatus.PREPARING]:
             confirmation_time = order.updated_at 
-            if (timezone.now() - confirmation_time).total_seconds() > getattr(settings, 'ORDER_CANCELLATION_WINDOW', 300): 
+            # --- FIX: Hard-coded value ko settings se lein ---
+            cancellation_window = settings.ORDER_CANCELLATION_WINDOW
+            if (timezone.now() - confirmation_time).total_seconds() > cancellation_window: 
                 return Response(
-                    {"error": f"Confirmed orders can only be cancelled within {getattr(settings, 'ORDER_CANCELLATION_WINDOW', 300) // 60} minutes."},
+                    {"error": f"Confirmed orders can only be cancelled within {cancellation_window // 60} minutes."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+            # --- END FIX ---
         
         original_status = order.status
         payment_to_refund = None

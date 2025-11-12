@@ -97,8 +97,10 @@ class StaffDashboardView(generics.GenericAPIView):
             status=PickTask.PickStatus.PENDING
         ).count()
 
-        # Low stock items
-        LOW_STOCK_THRESHOLD = 10
+        # --- FIX: Hard-coded value ko settings se lein ---
+        LOW_STOCK_THRESHOLD = settings.LOW_STOCK_THRESHOLD
+        # --- END FIX ---
+        
         low_stock_items = StoreInventory.objects.filter(
             store=store,
             is_available=True,
