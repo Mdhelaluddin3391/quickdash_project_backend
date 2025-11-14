@@ -348,6 +348,14 @@ main {
     /* NAYA: Thoda zyada dikhega */
 }
 
+/* YEH NAYA STYLE ADD KAREIN (Banner image ke liye) */
+.promo-image-dynamic {
+    width: 80px;
+    height: 80px;
+    object-fit: contain;
+    margin-right: 10px;
+}
+
 
 /* --- Categories (QuickMart structure & style) --- */
 .categories {
@@ -751,7 +759,7 @@ footer {
     }
 
     .location {
-        display: none;
+        /* display: none; */
         /* Jagah banane ke liye hide kar raha hoon */
     }
 

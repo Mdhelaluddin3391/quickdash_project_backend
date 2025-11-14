@@ -13,6 +13,15 @@
     <link rel="stylesheet" href="{% static 'css/index_style.css' %}">
     <title>QuickDash - Home</title>
 
+    <style>
+        /* YEH NAYA STYLE ADD KAREIN (Banner image ke liye) */
+        .promo-image-dynamic {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+            margin-right: 10px;
+        }
+    </style>
 
 </head>
 
@@ -21,8 +30,7 @@
     <header class="new-header">
         <div class="header-top-row">
             <div class="logo-location-group">
-                <a href="index.html" class="logo">
-                    <i class="fas fa-bolt"></i>
+                <a href="{% url 'web:index' %}" class="logo"> <i class="fas fa-bolt"></i>
                     <span>QuickDash</span>
                 </a>
                 <div class="location">
@@ -32,20 +40,17 @@
             </div>
 
             <div class="header-icons">
-                <a href="auth.html" class="icon-link">
-                    <i class="far fa-user"></i>
+                <a href="{% url 'web:auth' %}" class="icon-link"> <i class="far fa-user"></i>
                     <span class="icon-text">Account</span>
                 </a>
-                <a href="cart.html" class="icon-link cart-link">
-                    <i class="fas fa-shopping-cart"></i>
+                <a href="{% url 'web:cart' %}" class="icon-link cart-link"> <i class="fas fa-shopping-cart"></i>
                     <span class="icon-text">Cart</span>
-                    <span class="cart-count">0</span>
+                    <span class="cart-count">0</span> 
                 </a>
             </div>
         </div>
 
-        <form class="search-bar-row" method="GET" action="#">
-            <i class="fas fa-search"></i>
+        <form class="search-bar-row" method="GET" action="{% url 'web:search' %}"> <i class="fas fa-search"></i>
             <input type="text" name="q" placeholder="Search for items..." value="">
         </form>
 
@@ -62,29 +67,8 @@
     </header>
 
     <section class="hero-section">
-        <div class="scroll-banner">
-            <a href="product.html" class="promo-card">
-                <div class="promo-content">
-                    <h3>Fresh Apples</h3>
-                    <p>Upto 30% OFF</p>
-                </div>
-                <i class="fas fa-apple-alt promo-image"></i>
-            </a>
-            <a href="product.html" class="promo-card dark-theme">
-                <div class="promo-content">
-                    <h3>Snack Combo</h3>
-                    <p>Only at ₹99</p>
-                </div>
-                <i class="fas fa-cookie-bite promo-image"></i>
-            </a>
-            <a href="product.html" class="promo-card">
-                <div class="promo-content">
-                    <h3>Dairy Goodness</h3>
-                    <p>Starting ₹45</p>
-                </div>
-                <i class="fas fa-cheese promo-image"></i>
-            </a>
-        </div>
+        <div class="scroll-banner" id="banner-container">
+            </div>
     </section>
 
     <main>
@@ -92,208 +76,31 @@
         <section>
             <div class="section-title">
                 <h2>Shop By Category</h2>
-                <a href="category.html" class="view-all">View All</a>
-            </div>
-            <div class="categories">
-                <a href="category.html" class="category-card">
-                    <div class="category-icon">
-                        <i class="fas fa-apple-alt"></i>
-                    </div>
-                    <h3>Fruits & Veg</h3>
-                </a>
-                <a href="category.html" class="category-card">
-                    <div class="category-icon">
-                        <i class="fas fa-cheese"></i>
-                    </div>
-                    <h3>Dairy</h3>
-                </a>
-                <a href="category.html" class="category-card">
-                    <div class="category-icon">
-                        <i class="fas fa-cookie"></i>
-                    </div>
-                    <h3>Snacks</h3>
-                </a>
-                <a href="category.html" class="category-card">
-                    <div class="category-icon">
-                        <i class="fas fa-wine-bottle"></i>
-                    </div>
-                    <h3>Drinks</h3>
-                </a>
-                <a href="category.html" class="category-card">
-                    <div class="category-icon">
-                        <i class="fas fa-drumstick-bite"></i>
-                    </div>
-                    <h3>Meat</h3>
-                </a>
-                <a href="category.html" class="category-card">
-                    <div class="category-icon">
-                        <i class="fas fa-bread-slice"></i>
-                    </div>
-                    <h3>Bakery</h3>
-                </a>
-            </div>
-        </section>
-
-        <section>
-            <div class="section-title">
-                <h2>Order Again</h2>
-                <a href="#" class="view-all">See All</a>
-            </div>
-            <div class="scroll-container">
-                <div class="product-grid">
-
-                    <div class="product-card">
-                        <a href="product.html">
-                            <div class="product-image">
-                                <img src="https://via.placeholder.com/150/E0F7FA/00796B?text=Milk" alt="Milk">
-                            </div>
-                        </a>
-                        <div class="product-info">
-                            <h3 class="product-title">Fresh Milk 500ml</h3>
-                            <div class="product-weight">Amul Taaza</div>
-                            <div class="product-price">
-                                <div class="price">₹28</div>
-                                <button class="add-to-cart"><i class="fas fa-plus"></i></button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="product-card">
-                        <a href="product.html">
-                            <div class="product-image">
-                                <div class="discount-badge">15% OFF</div>
-                                <img src="https://via.placeholder.com/150/D7CCC8/5D4037?text=Cookies" alt="Cookies">
-                            </div>
-                        </a>
-                        <div class="product-info">
-                            <h3 class="product-title">Choco Cookies</h3>
-                            <div class="product-weight">Bakery fresh</div>
-                            <div class="product-price">
-                                <div class="price">
-                                    <span class="original-price">₹100</span> ₹85
-                                </div>
-                                <button class="add-to-cart"><i class="fas fa-plus"></i></button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="product-card">
-                        <a href="product.html">
-                            <div class="product-image">
-                                <img src="https://via.placeholder.com/150/FFFACD/FFD700?text=Banana" alt="Banana">
-                            </div>
-                        </a>
-                        <div class="product-info">
-                            <h3 class="product-title">Banana (Dozen)</h3>
-                            <div class="product-weight">Rich in potassium</div>
-                            <div class="product-price">
-                                <div class="price">₹50</div>
-                                <button class="add-to-cart"><i class="fas fa-plus"></i></button>
-                            </div>
-                        </div>
-                    </div>
-
+                <a href="category.html" class="view-all">View All</a> </div>
+            <div class="categories" id="category-container">
                 </div>
-            </div>
         </section>
 
         <section>
             <div class="section-title">
-                <h2>Deals of the Day</h2>
+                <h2>Featured Products</h2>
                 <a href="#" class="view-all">More</a>
             </div>
             <div class="scroll-container">
-                <div class="product-grid">
-
-                    <div class="product-card">
-                        <a href="product.html">
-                            <div class="product-image">
-                                <img src="https://via.placeholder.com/150/FFCDD2/D32F2F?text=Cola" alt="Cola">
-                            </div>
-                        </a>
-                        <div class="product-info">
-                            <h3 class="product-title">Cola Drink</h3>
-                            <div class="product-weight">500ml Bottle</div>
-                            <div class="product-price">
-                                <div class="price">₹40</div>
-                                <button class="add-to-cart"><i class="fas fa-plus"></i></button>
-                            </div>
-                        </div>
+                <div class="product-grid" id="featured-product-grid">
                     </div>
-
-                    <div class="product-card">
-                        <a href="product.html">
-                            <div class="product-image">
-                                <div class="discount-badge">20% OFF</div>
-                                <img src="https://via.placeholder.com/150/FFECB3/E65100?text=Chips" alt="Chips">
-                            </div>
-                        </a>
-                        <div class="product-info">
-                            <h3 class="product-title">Potato Chips</h3>
-                            <div class="product-weight">Classic Salted</div>
-                            <div class="product-price">
-                                <div class="price">
-                                    <span class="original-price">₹25</span> ₹20
-                                </div>
-                                <button class="add-to-cart"><i class="fas fa-plus"></i></button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="product-card">
-                        <a href="product.html">
-                            <div class="product-image">
-                                <img src="https://via.placeholder.com/150/E0BBE4/9575CD?text=Grapes" alt="Grapes">
-                            </div>
-                        </a>
-                        <div class="product-info">
-                            <h3 class="product-title">Black Grapes</h3>
-                            <div class="product-weight">Seedless, 500g</div>
-                            <div class="product-price">
-                                <div class="price">₹90</div>
-                                <span class="out-of-stock-btn">Out of Stock</span>
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
             </div>
         </section>
 
     </main>
-
+    
     <section class="app-download-banner">
-        <div class="app-icon"><i class="fas fa-mobile-alt"></i></div>
-        <div class="app-download-content">
-            <h3>Get the QuickDash App</h3>
-            <p>Order faster & track delivery live!</p>
-            <div class="app-stores">
-                <a href="#"><img
-                        src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Google_Play_Store_badge_EN.svg/2560px-Google_Play_Store_badge_EN.svg.png"
-                        alt="Get it on Google Play"></a>
-                <a href="#"><img
-                        src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Download_on_the_App_Store_Badge.svg/2560px-Download_on_the_App_Store_Badge.svg.png"
-                        alt="Download on the App Store"></a>
-            </div>
-        </div>
-    </section>
+        </section>
 
     <section class="trust-badge-section">
-        <div class="trust-badge">
-            <i class="fas fa-shipping-fast"></i>
-            <h5>10-20 Min Delivery</h5>
-        </div>
-        <div class="trust-badge">
-            <i class="fas fa-leaf"></i>
-            <h5>Freshness Guaranteed</h5>
-        </div>
-        <div class="trust-badge">
-            <i class="fas fa-shield-alt"></i>
-            <h5>Secure Payments</h5>
-        </div>
-    </section>
+        </section>
 
-    <footer>
+        <footer>
         <div class="container">
             <div class="footer-content">
                 <div class="footer-column">
@@ -305,7 +112,7 @@
                         <a href="#"><i class="fab fa-instagram"></i></a>
                     </div>
                 </div>
-
+                
                 <div class="footer-column">
                     <h3>Quick Links</h3>
                     <ul class="footer-links">
@@ -316,7 +123,7 @@
                         <li><a href="#">FAQ</a></li>
                     </ul>
                 </div>
-
+                
                 <div class="footer-column">
                     <h3>Categories</h3>
                     <ul class="footer-links">
@@ -327,22 +134,22 @@
                         <li><a href="#">Instant & Frozen Food</a></li>
                     </ul>
                 </div>
-
+                
                 <div class="footer-column">
                     <h3>Download App</h3>
                     <div class="app-download">
                         <a href="#"><img
-                                src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Google_Play_Store_badge_EN.svg/2560px-Google_Play_Store_badge_EN.svg.png"
-                                alt="Get it on Google Play" style="height: 40px;"></a>
+                        src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Google_Play_Store_badge_EN.svg/2560px-Google_Play_Store_badge_EN.svg.png"
+                        alt="Get it on Google Play" style="height: 40px;"></a>
                     </div>
-                    <div class="app-download">
+                     <div class="app-download">
                         <a href="#"><img
-                                src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Download_on_the_App_Store_Badge.svg/2560px-Download_on_the_App_Store_Badge.svg.png"
-                                alt="Download on the App Store" style="height: 40px;"></a>
+                        src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Download_on_the_App_Store_Badge.svg/2560px-Download_on_the_App_Store_Badge.svg.png"
+                        alt="Download on the App Store" style="height: 40px;"></a>
                     </div>
                 </div>
             </div>
-
+            
             <div class="copyright">
                 <p>© 2025 QuickDash. All Rights Reserved. Built for demo purposes.</p>
             </div>
@@ -352,71 +159,209 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
 
-            // 1. Search Bar Logic (Selectors updated)
+            // 1. Search Bar Logic (Aapka purana code, yeh theek hai)
             const input = document.querySelector('.search-bar-row input');
             const searchBar = document.querySelector('.search-bar-row');
             if (input && searchBar) {
-                // Focus: Jab click karein
                 input.addEventListener('focus', () => {
                     searchBar.style.backgroundColor = '#fff';
                 });
-                // Blur: Jab kahin aur click karein
                 input.addEventListener('blur', () => {
                     searchBar.style.backgroundColor = 'var(--light)';
                 });
             }
 
-            // 2. Promo Card Auto-Swipe Logic (BADLAAV KIYA GAYA)
-            const scrollBanner = document.querySelector('.scroll-banner');
-            if (scrollBanner) {
-                let currentCardIndex = 0;
-                const promoCards = scrollBanner.querySelectorAll('.promo-card');
-                if (promoCards.length > 1) {
-                    setInterval(() => {
-                        currentCardIndex = (currentCardIndex + 1) % promoCards.length;
-                        const nextCard = promoCards[currentCardIndex];
+            // 2. NAYA: Home Page ka data fetch karne ke liye function
+            async function fetchHomePageData() {
+                try {
+                    // YEH HAI AAPKA API ENDPOINT
+                    // Hum assume kar rahe hain ki 'store' app Django project mein '/api/store/' par registered hai
+                    const response = await fetch('/api/store/home-data/');
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // Data milne ke baad, HTML render functions ko call karein
+                    renderBanners(data.banners);
+                    renderCategories(data.categories);
+                    renderProducts(data.featured_products);
 
-                        // Card ke left position tak scroll karein
-                        scrollBanner.scroll({
-                            left: nextCard.offsetLeft, // NAYA: 15px gap wala logic hata diya
-                            behavior: 'smooth'
-                        });
-                    }, 3000); // Har 3 second mein
+                } catch (error) {
+                    console.error("Home page data fetch karne mein error:", error);
+                    // User ko error dikhayein
+                    document.getElementById('banner-container').innerHTML = "<p>Banners load nahi ho sake.</p>";
+                    document.getElementById('category-container').innerHTML = "<p>Categories load nahi ho saki.</p>";
+                    document.getElementById('featured-product-grid').innerHTML = "<p>Products load nahi ho sake.</p>";
                 }
             }
 
-            // 3. Cart Update Logic (Selectors updated)
+            // 3. NAYA: Banners ko render karne ka function
+            function renderBanners(banners) {
+                const container = document.getElementById('banner-container');
+                container.innerHTML = ''; // Container ko saaf karein
+                
+                if (!banners || banners.length === 0) {
+                    container.innerHTML = "<p>No promotions available right now.</p>";
+                    return;
+                }
 
-            // A. Zaroori elements ko select karein
-            const allAddButtons = document.querySelectorAll('.add-to-cart');
-            const cartCountElement = document.querySelector('.cart-count');
-
-            // B. Shuruati cart count ko number mein store karein
-            let currentCartCount = parseInt(cartCountElement.innerText);
-
-            // C. Sabhi 'ADD' buttons par click listener lagayein
-            allAddButtons.forEach(button => {
-                button.addEventListener('click', (event) => {
-
-                    event.preventDefault();
-
-                    // D. Count badhayein
-                    currentCartCount++;
-
-                    // E. Screen par naye count ko update karein
-                    cartCountElement.innerText = currentCartCount;
-
-                    // (Optional) Button ko animate karein
-                    cartCountElement.style.transform = 'scale(1.3)';
-                    setTimeout(() => {
-                        cartCountElement.style.transform = 'scale(1)';
-                    }, 200);
+                banners.forEach(banner => {
+                    // Data aapke BannerSerializer ke hisaab se (title, image, link)
+                    // Humne icon ki jagah <img> ka istemal kiya hai
+                    const bannerHtml = `
+                        <a href="${banner.link || '#'}" class="promo-card">
+                            <div class="promo-content">
+                                <h3>${banner.title}</h3>
+                            </div>
+                            <img src="${banner.image}" alt="${banner.title}" class="promo-image-dynamic">
+                        </a>
+                    `;
+                    container.innerHTML += bannerHtml;
                 });
-            });
+            }
+
+            // 4. NAYA: Categories ko render karne ka function
+            function renderCategories(categories) {
+                const container = document.getElementById('category-container');
+                container.innerHTML = ''; // Container ko saaf karein
+
+                categories.forEach(category => {
+                    // Data aapke CategorySerializer ke hisaab se (name, icon, slug)
+                    // Humne link ko static 'category.html' se dynamic URL mein badal diya hai
+                    const categoryHtml = `
+                        <a href="/category/${category.slug}/" class="category-card"> 
+                            <div class="category-icon">
+                                <i class="${category.icon || 'fas fa-tag'}"></i> 
+                            </div>
+                            <h3>${category.name}</h3>
+                        </a>
+                    `;
+                    container.innerHTML += categoryHtml;
+                });
+            }
+
+            // 5. NAYA: Products ko render karne ka function
+            function renderProducts(products) {
+                const container = document.getElementById('featured-product-grid');
+                container.innerHTML = ''; // Container ko saaf karein
+
+                if (!products || products.length === 0) {
+                    container.innerHTML = "<p>No featured products available.</p>";
+                    return;
+                }
+
+                /* ZAROORI NOTE: Aapka HomePageDataSerializer 'featured_products' ke liye 
+                'inventory.serializers.StoreInventoryListSerializer' ka istemal karta hai,
+                jo file mujhe nahi di gayi hai.
+                
+                Main ASSUME kar raha hoon ki har product object (item) aisa dikhega:
+                {
+                   "id": (variant ka id),
+                   "product": { "id": (product ka id), "name": "...", "main_image": "..." },
+                   "variant_name": "500ml",
+                   "price": { "price": "28.00", "original_price": "30.00" },
+                   "is_out_of_stock": false
+                }
+                Agar yeh structure alag hai, toh niche diye gaye code ko badalna hoga.
+                */
+
+                products.forEach(item => {
+                    // Upar diye gaye assumption ke aadhar par fields
+                    const product = item.product; 
+                    const variantName = item.variant_name || '';
+                    const price = item.price.price;
+                    const originalPrice = item.price.original_price;
+                    const discount = (originalPrice && parseFloat(price) < parseFloat(originalPrice));
+                    const isOutOfStock = item.is_out_of_stock;
+
+                    let priceHtml = `<div class="price">₹${price}</div>`;
+                    if (discount) {
+                        priceHtml = `
+                            <div class="price">
+                                <span class="original-price">₹${originalPrice}</span> ₹${price}
+                            </div>
+                        `;
+                    }
+
+                    // Button logic
+                    let buttonHtml = `<button class="add-to-cart" data-variant-id="${item.id}"><i class="fas fa-plus"></i></button>`;
+                    if (isOutOfStock) {
+                        buttonHtml = `<span class="out-of-stock-btn">Out of Stock</span>`;
+                    }
+
+                    // Product card HTML
+                    const productHtml = `
+                        <div class="product-card">
+                            <a href="/product/${product.id}/">
+                                <div class="product-image">
+                                    ${discount ? '<div class="discount-badge">OFF</div>' : ''}
+                                    <img src="${product.main_image}" alt="${product.name}">
+                                </div>
+                            </a>
+                            <div class="product-info">
+                                <h3 class="product-title">${product.name}</h3>
+                                <div class="product-weight">${variantName}</div>
+                                <div class="product-price">
+                                    ${priceHtml}
+                                    ${buttonHtml}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    container.innerHTML += productHtml;
+                });
+
+                // Products render hone ke BAAD, naye bane 'add-to-cart' buttons par listener lagayein
+                attachCartButtonListeners();
+            }
+            
+            // 6. NAYA: Cart buttons par click logic (Aapka purana logic, naye function mein)
+            function attachCartButtonListeners() {
+                const allAddButtons = document.querySelectorAll('.add-to-cart');
+                const cartCountElement = document.querySelector('.cart-count');
+
+                allAddButtons.forEach(button => {
+                    // Double listener lagane se bachne ke liye check
+                    if (button.dataset.listenerAttached) return;
+
+                    button.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        
+                        // Variant ID jise cart mein add karna hai
+                        const variantId = event.currentTarget.dataset.variantId;
+                        console.log(`Adding variant ${variantId} to cart...`);
+                        
+                        // !! ABHI KE LIYE: Hum sirf number badha rahe hain.
+                        // Asli implementation mein, aapko yahan 'fetch' ka istemal karke
+                        // cart API (e.g., /api/cart/add/) ko call karna chahiye.
+                        
+                        let currentCartCount = parseInt(cartCountElement.innerText);
+                        currentCartCount++;
+                        cartCountElement.innerText = currentCartCount;
+
+                        // (Optional) Animation
+                        cartCountElement.style.transform = 'scale(1.3)';
+                        setTimeout(() => {
+                            cartCountElement.style.transform = 'scale(1)';
+                        }, 200);
+                    });
+                    
+                    button.dataset.listenerAttached = 'true'; // Mark karein ki listener lag gaya hai
+                });
+            }
+
+            // 7. NAYA: Page load par main function ko call karein
+            fetchHomePageData();
+            
+            // Purana cart logic aur swipe logic hata diya gaya hai kyunki
+            // - Cart logic ab dynamic hai (attachCartButtonListeners)
+            // - Banner swipe logic ko abhi ke liye hata diya gaya hai (dynamic banners)
 
         });
     </script>
 
 </body>
-
 </html>
