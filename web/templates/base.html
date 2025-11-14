@@ -1,0 +1,90 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;6.0;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="{% static 'css/index_style.css' %}">
+    
+    {% block styles %}
+    {% endblock styles %}
+
+    <title>{% block title %}QuickDash{% endblock title %}</title>
+</head>
+
+<body>
+
+    {% block header %}
+    <header class="new-header">
+        <div class="header-top-row">
+            <div class="logo-location-group">
+                <a href="{% url 'web:index' %}" class="logo"> <i class="fas fa-bolt"></i>
+                    <span>QuickDash</span>
+                </a>
+                <div class="location">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <span id="location-display">Detecting location...</span>
+                </div>
+            </div>
+
+            <div class="header-icons">
+                <a href="{% url 'web:profile' %}" class="icon-link"> <i class="far fa-user"></i>
+                    <span class="icon-text">Account</span>
+                </a>
+                <a href="{% url 'web:cart' %}" class="icon-link cart-link"> <i class="fas fa-shopping-cart"></i>
+                    <span class="icon-text">Cart</span>
+                    <span class="cart-count" id="cart-count">0</span>
+                </a>
+            </div>
+        </div>
+
+        <form class="search-bar-row" method="GET" action="{% url 'web:search' %}"> <i class="fas fa-search"></i>
+            <input type="text" name="q" placeholder="Search for items..." value="">
+        </form>
+
+        <nav class="header-nav-row" id="header-nav-categories">
+            <a href="{% url 'web:index' %}" class="nav-item active">All</a>
+        </nav>
+    </header>
+    {% endblock header %}
+
+    {% block content %}
+    {% endblock content %}
+    
+
+    {% block footer %}
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-column">
+                    <h3>QuickDash</h3>
+                    <p>Groceries delivered in minutes.</p>
+                </div>
+                <div class="footer-column">
+                    <h3>Quick Links</h3>
+                    <ul class="footer-links">
+                        <li><a href="#">About Us</a></li>
+                        <li><a href="#">Contact Us</a></li>
+                        <li><a href="{% url 'web:profile' %}">Account</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="copyright">
+                <p>© 2025 QuickDash. All Rights Reserved.</p>
+            </div>
+        </div>
+    </footer>
+    {% endblock footer %}
+    
+
+    {% block scripts %}
+    {% endblock scripts %}
+
+</body>
+</html>
