@@ -7,191 +7,261 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{% static 'css/auth_style.css' %}">
-    <title>QuickDash - Login/Sign Up</title>
+    <title>QuickDash - Login</title>
     <style>
-        /* Error messages ke liye helper style */
+        /* Helper styles to show/hide forms */
+        #otp-form {
+            display: none;
+            /* OTP form ko shuru mein hide karein */
+        }
+
         .error-message {
-            color: #ff4d4d;
+            color: var(--error);
             font-size: 0.9em;
-            margin-top: 5px;
-            text-align: left;
-            width: 100%;
-            white-space: pre-wrap; /* Naya: Taki error message line break ho sake */
+            margin-top: 15px;
+            text-align: center;
         }
     </style>
 </head>
 
 <body>
 
-    <div class="container" id="container">
-        <div class="form-container sign-up-container">
-            <form id="register-form">
-                <h1>Create Account</h1>
-                <input type="text" name="first_name" placeholder="First Name" required />
-                <input type="text" name="last_name" placeholder="Last Name" required />
-                <input type="email" name="email" placeholder="Email" required />
-                <input type="text" name="phone_number" placeholder="Phone (e.g., +91...)" required />
-                <input type="password" name="password" placeholder="Password" required />
-                <button type="submit">Sign Up</button>
-                <div class="error-message" id="register-error"></div>
-            </form>
-        </div>
+    <div class="auth-container">
+        <div class="auth-card">
 
-        <div class="form-container sign-in-container">
-            <form id="login-form">
-                <h1>Sign in</h1>
-                <input type="text" name="username" placeholder="Phone or Email" required />
-                <input type="password" name="password" placeholder="Password" required />
-                <a href="#">Forgot your password?</a>
-                <button type="submit">Sign In</button>
-                <div class="error-message" id="login-error"></div>
-            </form>
-        </div>
+            <a href="{% url 'web:index' %}" class="close-btn">
+                <i class="fas fa-times"></i>
+            </a>
 
-        <div class="overlay-container">
-            <div class="overlay">
-                <div class="overlay-panel overlay-left">
-                    <h1>Welcome Back!</h1>
-                    <p>To keep connected with us please login with your personal info</p>
-                    <button class="ghost" id="signIn">Sign In</button>
+            <div class="auth-header">
+                <img src="https://img.icons8.com/color/96/000000/flash-on.png" alt="QuickDash Icon" class="header-icon"
+                    style="width: 70px; height: 70px;">
+                <h2 id="auth-title">Login or Sign Up</h2>
+                <p id="auth-subtitle">Enter your phone number to continue</p>
+            </div>
+
+            <form class="auth-form" id="phone-form">
+                <label for="phone">Phone Number</label>
+                <div class="input-group">
+                    <span class="country-code">+91</span>
+                    <input type="tel" id="phone_number" name="phone_number" placeholder="98765 43210" required>
                 </div>
-                <div class="overlay-panel overlay-right">
-                    <h1>Hello, Friend!</h1>
-                    <p>Enter your personal details and start journey with us</p>
-                    <button class="ghost" id="signUp">Sign Up</button>
+
+                <button type="submit" class="submit-btn" id="send-otp-btn">
+                    <span>Send OTP</span>
+                </button>
+                <div class="error-message" id="phone-error"></div>
+            </form>
+
+            <form class="auth-form" id="otp-form">
+                <div class="otp-info">
+                    Enter OTP sent to <strong id="otp-phone-display"></strong>
+                    <a href="#" id="change-number">Change</a>
                 </div>
+
+                <label for="otp">Enter 6-Digit OTP</label>
+                <div class="input-group otp-inputs">
+                    <input type="tel" class="otp-box" maxlength="1">
+                    <input type="tel" class="otp-box" maxlength="1">
+                    <input type="tel" class="otp-box" maxlength="1">
+                    <input type="tel" class="otp-box" maxlength="1">
+                    <input type="tel" class="otp-box" maxlength="1">
+                    <input type="tel" class="otp-box" maxlength="1">
+                </div>
+
+                <button type="submit" class="submit-btn" id="verify-otp-btn">
+                    <span class="spinner" style="display: none;"></span>
+                    <span>Verify & Continue</span>
+                </button>
+
+                <div class="resend-timer">
+                    <span id="timer-text">Resend OTP in <span id="timer">30</span>s</span>
+                    <a href="#" id="resend-link" style="display: none;">Resend OTP</a>
+                </div>
+                <div class="error-message" id="otp-error"></div>
+            </form>
+
+            <div class="auth-footer">
+                By continuing, you agree to our
+                <a href="#">Terms of Service</a> & <a href="#">Privacy Policy</a>
             </div>
         </div>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
+        <script>
+    document.addEventListener('DOMContentLoaded', () => {
 
-            // --- 1. UI Elements ---
-            const signUpButton = document.getElementById('signUp');
-            const signInButton = document.getElementById('signIn');
-            const container = document.getElementById('container');
-            const loginForm = document.getElementById('login-form');
-            const registerForm = document.getElementById('register-form');
-            const loginError = document.getElementById('login-error');
-            const registerError = document.getElementById('register-error');
+        // --- 1. UI Elements ---
+        const phoneForm = document.getElementById('phone-form');
+            const otpForm = document.getElementById('otp-form');
+            const phoneInput = document.getElementById('phone_number');
+            const phoneError = document.getElementById('phone-error');
+            const otpError = document.getElementById('otp-error');
+            const sendOtpBtn = document.getElementById('send-otp-btn');
+            const verifyOtpBtn = document.getElementById('verify-otp-btn');
+            const changeNumberBtn = document.getElementById('change-number');
+            const otpPhoneDisplay = document.getElementById('otp-phone-display');
+            const authTitle = document.getElementById('auth-title');
+            const authSubtitle = document.getElementById('auth-subtitle');
+            const otpInputs = document.querySelectorAll('.otp-box');
 
-            // --- 2. URL se 'next' parameter nikalna ---
+            // --- 2. URL 'next' parameter ---
             const urlParams = new URLSearchParams(window.location.search);
-            // NAYA: Default redirect 'profile' page hai
             const nextUrl = urlParams.get('next') || "{% url 'web:profile' %}";
 
-            // --- 3. Check agar user pehle se logged-in hai ---
-            if (localStorage.getItem('accessToken')) {
-                window.location.href = nextUrl;
-            }
-
-            // --- 4. Toggle Logic ---
-            signUpButton.addEventListener('click', () => {
-                container.classList.add("right-panel-active");
-                loginError.innerText = '';
-                registerError.innerText = '';
-            });
-
-            signInButton.addEventListener('click', () => {
-                container.classList.remove("right-panel-active");
-                loginError.innerText = '';
-                registerError.innerText = '';
-            });
-            
-            // --- 5. Helper: CSRF Token ---
+            // --- 3. CSRF Token Helper ---
             function getCsrfToken() {
-                // Django default cookie 'csrftoken' se value nikalna
-                return document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+            return document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+        }
+
+        // --- 4. Phone Form Submission (Send OTP) ---
+        phoneForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+            phoneError.innerText = '';
+            let phoneNumber = phoneInput.value.trim();
+
+            if (!/^\d{10}$/.test(phoneNumber)) {
+                phoneError.innerText = 'Please enter a valid 10-digit phone number.';
+            return;
             }
 
-            // --- 6. Login Form Submission ---
-            loginForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                loginError.innerText = '';
-                const button = loginForm.querySelector('button');
-                button.disabled = true;
-                button.innerText = 'Signing In...';
+            const fullPhoneNumber = `+91${phoneNumber}`;
 
-                const formData = new FormData(loginForm);
-                const data = Object.fromEntries(formData.entries());
+            sendOtpBtn.disabled = true;
+            sendOtpBtn.innerHTML = '<span class="spinner"></span> <span>Sending OTP...</span>';
 
-                try {
-                    // NAYA: /api/token/ (SimpleJWT) endpoint ka istemal
-                    const response = await fetch('/api/token/', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': getCsrfToken() // CSRF Token
-                        },
-                        body: JSON.stringify(data),
-                    });
+            try {
+                // --- BADLAAV YAHAN HAI ---
+                // '/api/accounts/login/' ki jagah '/api/accounts/send-otp/'
+                const response = await fetch('/api/accounts/send-otp/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify({ phone_number: fullPhoneNumber })
+                });
 
+                if (!response.ok) {
                     const result = await response.json();
+                    // Aapke view 'error' bhejta hai, 'detail' nahi
+                    throw new Error(result.error || 'Failed to send OTP. Please try again.');
+                }
 
-                    if (!response.ok) {
-                        loginError.innerText = result.detail || 'Invalid credentials.';
-                    } else {
-                        // SUCCESS!
-                        localStorage.setItem('accessToken', result.access);
-                        localStorage.setItem('refreshToken', result.refresh);
-                        window.location.href = nextUrl; // 'next' URL par redirect karein
-                    }
+                // --- Success: Show OTP Form ---
+                otpPhoneDisplay.innerText = fullPhoneNumber;
+                phoneForm.style.display = 'none';
+                otpForm.style.display = 'flex';
+                authTitle.innerText = 'Verify OTP';
+                authSubtitle.innerText = 'Enter the OTP sent to your phone';
+                otpInputs[0].focus();
+                // startTimer(); // Timer function aap baad mein add kar sakte hain
 
-                } catch (error) {
-                    loginError.innerText = 'Something went wrong. Please try again.';
-                } finally {
-                    button.disabled = false;
-                    button.innerText = 'Sign In';
+            } catch (error) {
+                phoneError.innerText = error.message;
+            } finally {
+                sendOtpBtn.disabled = false;
+                sendOtpBtn.innerHTML = '<span>Send OTP</span>';
+            }
+        });
+
+        // --- 5. OTP Form Submission (Verify OTP) ---
+        otpForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            otpError.innerText = '';
+            let otp = '';
+            otpInputs.forEach(input => otp += input.value);
+
+            if (otp.length !== 6) {
+                otpError.innerText = 'Please enter a valid 6-digit OTP.';
+                return;
+            }
+
+            const fullPhoneNumber = otpPhoneDisplay.innerText;
+            const spinner = verifyOtpBtn.querySelector('.spinner');
+
+            verifyOtpBtn.disabled = true;
+            spinner.style.display = 'inline-block';
+            verifyOtpBtn.querySelector('span:last-child').innerText = 'Verifying...';
+
+            try {
+                // --- BADLAAV YAHAN HAI ---
+                // '/api/accounts/verify/' ki jagah '/api/accounts/verify-otp/'
+                const response = await fetch('/api/accounts/verify-otp/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify({ phone_number: fullPhoneNumber, otp: otp })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                     // Aapke view 'error' bhejta hai, 'detail' nahi
+                    throw new Error(result.error || 'Invalid OTP. Please try again.');
+                }
+
+                // --- SUCCESS! ---
+                // Aapka view 'tokens' object nahi, direct 'access' aur 'refresh' keys bhejta hai
+                localStorage.setItem('accessToken', result.access);
+                localStorage.setItem('refreshToken', result.refresh);
+                window.location.href = nextUrl; // Redirect to profile or 'next' URL
+
+            } catch (error) {
+                otpError.innerText = error.message;
+            } finally {
+                verifyOtpBtn.disabled = false;
+                spinner.style.display = 'none';
+                verifyOtpBtn.querySelector('span:last-child').innerText = 'Verify & Continue';
+            }
+        });
+
+        // --- 6. "Change Number" Link ---
+        changeNumberBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            otpForm.style.display = 'none';
+            phoneForm.style.display = 'flex';
+            authTitle.innerText = 'Login or Sign Up';
+            authSubtitle.innerText = 'Enter your phone number to continue';
+            phoneError.innerText = '';
+            otpError.innerText = '';
+        });
+
+        // --- 7. OTP Input Handling (Focus & Paste) ---
+        otpInputs.forEach((input, index) => {
+            input.addEventListener('input', () => {
+                if (input.value.length === 1 && index < otpInputs.length - 1) {
+                    otpInputs[index + 1].focus();
                 }
             });
 
-            // --- 7. Register Form Submission ---
-            registerForm.addEventListener('submit', async (e) => {
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && !input.value && index > 0) {
+                    otpInputs[index - 1].focus();
+                }
+            });
+            
+            input.addEventListener('paste', (e) => {
                 e.preventDefault();
-                registerError.innerText = '';
-                const button = registerForm.querySelector('button');
-                button.disabled = true;
-                button.innerText = 'Creating Account...';
-
-                const formData = new FormData(registerForm);
-                const data = Object.fromEntries(formData.entries());
-                // NAYA: 'username' ko 'phone_number' se set karein (aapke model ke hisab se)
-                data.username = data.phone_number;
-
-                try {
-                    const response = await fetch('/api/accounts/register/', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': getCsrfToken() // CSRF Token
-                        },
-                        body: JSON.stringify(data),
+                const paste = e.clipboardData.getData('text');
+                if (/^\d{6}$/.test(paste)) {
+                    otpInputs.forEach((box, i) => {
+                        box.value = paste[i] || '';
                     });
-
-                    const result = await response.json();
-
-                    if (!response.ok) { // 400 Bad Request
-                        let errorMsg = '';
-                        for (const key in result) {
-                            errorMsg += `${key}: ${result[key][0]} \n`;
-                        }
-                        registerError.innerText = errorMsg || 'Registration failed.';
-                    } else {
-                        // SUCCESS!
-                        container.classList.remove("right-panel-active");
-                        loginError.innerText = 'Registration successful! Please sign in.';
-                    }
-
-                } catch (error) {
-                    registerError.innerText = 'Something went wrong. Please try again.';
-                } finally {
-                    button.disabled = false;
-                    button.innerText = 'Sign Up';
+                    verifyOtpBtn.focus();
                 }
             });
         });
+        
+        // --- 8. Timer Logic (Aap baad mein add kar sakte hain) ---
+        function startTimer() {
+            // (Timer logic yahaan add karein)
+        }
+    });
     </script>
-
+    
 </body>
+
 </html>
