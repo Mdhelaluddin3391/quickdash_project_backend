@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>QuickDash — Owner / Founder Dashboard</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<style>
+:root{--bg:#071025;--card:rgba(255,255,255,0.03);--muted:#9aa7c7;--accent1:#7a5bff;--accent2:#55f0ff}
+*{box-sizing:border-box;margin:0;padding:0;font-family:Inter,system-ui,Arial}
+body{background:var(--bg);color:#dbe7ff;padding:18px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.brand{display:flex;gap:12px;align-items:center}
+.logo{width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,var(--accent1),var(--accent2));display:flex;align-items:center;justify-content:center;color:#001a24;font-weight:800}
+.container{display:grid;grid-template-columns:1fr 320px;gap:18px}
+.main{min-height:70vh}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px}
+.card{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));padding:14px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
+.table{width:100%;border-collapse:collapse;color:#d6e9ff}
+.table th,.table td{padding:10px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left}
+.filters{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+.kpi{display:flex;flex-direction:column}
+.kpi h2{font-size:20px;margin-bottom:6px}
+.side{min-width:300px}
+.small{color:var(--muted);font-size:13px}
+.charts{height:220px;border-radius:10px;background:linear-gradient(135deg, rgba(122,91,255,0.06), rgba(85,240,255,0.04));display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.footer{margin-top:18px;color:var(--muted);font-size:13px}
+.btn{background:linear-gradient(90deg,var(--accent1),var(--accent2));color:#001a24;padding:8px 12px;border-radius:10px;border:none;cursor:pointer}
+</style>
+</head>
+<body>
+<header class="header">
+  <div class="brand"><div class="logo">QF</div><div><div style="font-weight:700">QuickDash — Founder</div><div class="small">Owner / Founder BI</div></div></div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <div class="small">Logged in as <strong>Founder</strong></div>
+    <button class="btn" onclick="exportCSV()">Export Reports</button>
+  </div>
+</header>
+
+<section class="container">
+  <main class="main">
+    <div class="grid">
+      <div class="card kpi">
+        <h2 id="kpiRevenue">₹ 1,24,580</h2>
+        <div class="small">Total Revenue (MTD)</div>
+      </div>
+      <div class="card kpi">
+        <h2 id="kpiOrders">12,480</h2>
+        <div class="small">Total Orders (MTD)</div>
+      </div>
+      <div class="card kpi">
+        <h2 id="kpiGMV">₹ 2,34,000</h2>
+        <div class="small">GMV</div>
+      </div>
+      <div class="card kpi">
+        <h2 id="kpiARPU">₹ 95</h2>
+        <div class="small">Avg Order Value</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <strong>Sales Overview</strong>
+        <div class="small">Last 30 days</div>
+      </div>
+      <div class="charts" id="chartSales">[Sales chart placeholder]</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="card">
+        <strong>Top Categories</strong>
+        <div style="margin-top:8px" class="small">Category-wise revenue</div>
+        <table class="table" style="margin-top:10px">
+          <thead><tr><th>Category</th><th>Revenue</th></tr></thead>
+          <tbody id="topCats"><tr><td>Dairy</td><td>₹ 42,000</td></tr><tr><td>Bakery</td><td>₹ 31,000</td></tr></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <strong>Region Performance</strong>
+        <div class="small" style="margin-top:8px">City / Region breakdown</div>
+        <table class="table" style="margin-top:10px">
+          <thead><tr><th>Region</th><th>Sales</th></tr></thead>
+          <tbody id="regions"><tr><td>Delhi</td><td>₹ 82,000</td></tr><tr><td>Mumbai</td><td>₹ 51,000</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <strong>Financials & Settlements</strong>
+      <div class="small" style="margin-top:8px">Latest settlements and payouts</div>
+      <table class="table" style="margin-top:10px">
+        <thead><tr><th>Date</th><th>Type</th><th>Amount</th></tr></thead>
+        <tbody><tr><td>2025-11-01</td><td>Payout</td><td>₹ 1,20,000</td></tr></tbody>
+      </table>
+    </div>
+
+  </main>
+
+  <aside class="side">
+    <div class="card">
+      <strong>Quick Reports</strong>
+      <div style="margin-top:8px" class="small">Profit & Loss, Cashflow, Marketing</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+        <button class="btn" onclick="openReport('pnl')">Profit & Loss</button>
+        <button class="btn" onclick="openReport('cash')">Cashflow</button>
+        <button class="btn" onclick="openReport('mkt')">Marketing ROI</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <strong>Warehouse Health</strong>
+      <div class="small" style="margin-top:8px">Stock value, fill rate</div>
+      <div style="margin-top:8px"><strong>Fill rate</strong><div class="small">78%</div></div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <strong>Executive Notes</strong>
+      <div class="small" style="margin-top:8px">Important KPIs & alerts</div>
+      <ul class="small" style="margin-top:8px">
+        <li>Stock running low on Eggs</li>
+        <li>Marketing spend uptick in Week 2</li>
+      </ul>
+    </div>
+  </aside>
+</section>
+
+<div class="footer">This is a demo Owner Panel. Connect to backend for live BI data.</div>
+
+<script>
+function exportCSV(){ alert('Exporting CSV (demo)'); }
+function openReport(id){ alert('Open report: '+id+' (demo)'); }
+// placeholder chart draw (demo)
+document.getElementById('chartSales').textContent = 'Sales chart will render here (connect chart library)';
+</script>
+</body>
+</html>
