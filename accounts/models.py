@@ -12,8 +12,18 @@ class User(AbstractUser):
     """
     Custom User Model.
     """
-    
-    
+    class UserType(models.TextChoices):
+        CUSTOMER = 'CUSTOMER', 'Customer'
+        STAFF = 'STAFF', 'Staff'
+        RIDER = 'RIDER', 'Rider'
+
+    user_type = models.CharField(
+        max_length=20,
+        choices=UserType.choices,
+        default=UserType.CUSTOMER,
+        db_index=True
+    )
+
     email = models.EmailField(blank=True, null=True)
     
     phone_number = models.CharField(
@@ -67,6 +77,23 @@ class StoreStaffProfile(models.Model):
     Yeh profile user ko 'Store Staff' banati hai.
     Ise Admin Panel se manually add kiya jayega.
     """
+    class StaffRole(models.TextChoices):
+        HR = 'HR', 'HR'
+        MANAGER = 'MANAGER', 'Store Manager'
+        ShiftIncherg = 'ShiftIncherg', 'Shift Incherg'
+        PICKER = 'PICKER', 'Order Picker'
+        
+        # Aap aur bhi roles add kar sakte hain
+    
+    role = models.CharField(
+        max_length=20,
+        choices=StaffRole.choices,
+        null=True, blank=True,
+        help_text="Employee ka designation"
+    )
+
+
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE, 
@@ -79,14 +106,7 @@ class StoreStaffProfile(models.Model):
         blank=True,
         related_name='staff_members'
     )
-    is_manager = models.BooleanField(
-        default=False,
-        help_text="Kya yeh staff member is store ka manager hai?"
-    )
-    can_pick_orders = models.BooleanField(
-        default=False,
-        help_text="Kya yeh staff member mobile app se order pick kar sakta hai?"
-    )
+    
     last_task_assigned_at = models.DateTimeField(
         null=True, 
         blank=True, 
@@ -150,20 +170,20 @@ class Address(gis_models.Model):
 
 
 
-@receiver(post_save, sender=settings.AUTH_USER_MODEL)
-def create_user_profile(sender, instance, created, **kwargs):
-    """
-    Yeh signal User ke bante hi trigger hota hai.
-    Yeh har naye user ke liye default 'CustomerProfile' banata hai.
+# @receiver(post_save, sender=settings.AUTH_USER_MODEL)
+# def create_user_profile(sender, instance, created, **kwargs):
+#     """
+#     Yeh signal User ke bante hi trigger hota hai.
+#     Yeh har naye user ke liye default 'CustomerProfile' banata hai.
     
-    RiderProfile aur StoreStaffProfile ab yahaan nahi banenge.
-    Woh manually Admin Panel se ya "Apply" API se banenge.
-    """
+#     RiderProfile aur StoreStaffProfile ab yahaan nahi banenge.
+#     Woh manually Admin Panel se ya "Apply" API se banenge.
+#     """
     
-    if created:
-        try:
+#     if created:
+#         try:
            
-            CustomerProfile.objects.create(user=instance)
+#             CustomerProfile.objects.create(user=instance)
             
-        except Exception as e:
-            print(f"Error creating default customer profile for user {instance.username}: {e}")
+#         except Exception as e:
+#             print(f"Error creating default customer profile for user {instance.username}: {e}")

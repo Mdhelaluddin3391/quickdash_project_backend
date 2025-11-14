@@ -21,10 +21,23 @@ class RiderProfile(TimestampedModel):
     Rider-specific details. 
     Yeh model 'accounts' app ke User (with role='RIDER') se juda hai.
     """
+
+    class ApprovalStatus(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        APPROVED = 'APPROVED', 'Approved'
+        REJECTED = 'REJECTED', 'Rejected'
+
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE,
         related_name='rider_profile',
+    )
+
+    approval_status = models.CharField(
+        max_length=10,
+        choices=ApprovalStatus.choices,
+        default=ApprovalStatus.PENDING
     )
 
     application = models.OneToOneField(

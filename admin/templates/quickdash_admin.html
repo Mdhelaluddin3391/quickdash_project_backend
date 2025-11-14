@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>QuickDash — Admin Panel (Dark Neon Blue)</title>
+
+<!-- Font Awesome for icons -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+<style>
+/* ===========================
+   Variables & Base
+   =========================== */
+:root{
+  --bg-0: #071025; /* darkest */
+  --bg-1: #0b1230;
+  --card: rgba(255,255,255,0.03);
+  --muted: #9aa7c7;
+  --neon-1: #55f0ff; /* cyan */
+  --neon-2: #7a5bff; /* violet */
+  --accent: linear-gradient(135deg,var(--neon-2),var(--neon-1));
+  --glass: rgba(255,255,255,0.03);
+  --glass-2: rgba(255,255,255,0.02);
+  --success: #20e3a5;
+  --danger: #ff6b81;
+  --width-sidebar: 260px;
+  --header-h: 68px;
+  --radius: 12px;
+  --smooth: 300ms;
+  --shadow: 0 6px 24px rgba(2,6,23,0.6);
+  --glass-border: rgba(255,255,255,0.04);
+}
+
+/* small light-mode palette when toggled */
+:root.light {
+  --bg-0: #f7f9fc; --bg-1:#ffffff; --card:#ffffff; --muted:#6b7280;
+  --neon-1:#0ea5e9; --neon-2:#6d28d9; --shadow: 0 6px 30px rgba(14,21,47,0.06);
+}
+
+/* Base reset */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body,#app{height:100%}
+body{
+  background: radial-gradient(1200px 600px at 10% 10%, rgba(60,90,255,0.06), transparent),
+              radial-gradient(1000px 500px at 90% 80%, rgba(85,240,255,0.03), transparent),
+              var(--bg-0);
+  color: #dbe7ff;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  transition: background var(--smooth), color var(--smooth);
+  padding: 0;
+  min-height:100vh;
+}
+
+/* layout */
+.app {
+  display: flex;
+  min-height:100vh;
+  width:100%;
+  position:relative;
+}
+
+/* Sidebar */
+.sidebar {
+  width:var(--width-sidebar);
+  background: linear-gradient(180deg, rgba(10,18,45,0.85), rgba(6,10,26,0.9));
+  border-right:1px solid rgba(255,255,255,0.02);
+  padding:20px;
+  position:fixed;
+  left:0; top:0; bottom:0;
+  z-index:40;
+  box-shadow: var(--shadow);
+  transition: transform var(--smooth), width var(--smooth);
+}
+.brand {
+  display:flex;align-items:center;gap:12px;margin-bottom:18px;
+}
+.brand .logo {
+  width:44px;height:44px;border-radius:10px;
+  background: linear-gradient(135deg,var(--neon-2),var(--neon-1));
+  display:flex;align-items:center;justify-content:center;font-weight:700;
+  color:#001a24;font-size:18px;box-shadow:0 6px 20px rgba(122,91,255,0.12);
+}
+.brand h3{font-size:18px;color:#eaf5ff}
+
+/* sidebar list */
+.nav {
+  margin-top:6px;
+}
+.nav .section-title { color: var(--muted); font-size:12px; margin:10px 6px;}
+.nav ul { list-style:none; padding:6px; }
+.nav li {
+  display:flex;align-items:center;gap:12px;padding:10px;border-radius:10px;
+  color: #cfe9ff; cursor:pointer;margin-bottom:6px;
+  transition: all 180ms;
+}
+.nav li:hover { transform: translateX(6px); background: linear-gradient(90deg, rgba(255,255,255,0.02), transparent); }
+.nav li.active { background: linear-gradient(90deg, rgba(122,91,255,0.12), rgba(85,240,255,0.04)); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);}
+.nav li i{width:26px;text-align:center;color:var(--neon-1)}
+
+/* main content wrapper */
+.main {
+  margin-left:var(--width-sidebar);
+  flex:1;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  transition: margin-left var(--smooth);
+}
+
+/* header */
+.header {
+  height:var(--header-h);
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;padding:14px 28px;border-bottom:1px solid var(--glass-border);
+  backdrop-filter: blur(6px);
+  background: linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
+  position:sticky;top:0;z-index:20;
+}
+.header-left {display:flex;align-items:center;gap:14px}
+.header-left h1{font-size:18px;color:var(--neon-1)}
+.header-actions {display:flex;align-items:center;gap:12px}
+.search {
+  position:relative;
+}
+.search input{
+  padding:10px 12px 10px 36px;border-radius:999px;border:1px solid var(--glass-border);
+  background:transparent;color:inherit;outline:none;width:260px;
+  transition: box-shadow var(--smooth), width var(--smooth);
+}
+.search i{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.icon-btn {
+  background: linear-gradient(90deg, rgba(255,255,255,0.02), transparent);
+  padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.02);
+  cursor:pointer;color:var(--neon-1)
+}
+
+/* content area */
+.content {
+  flex:1;padding:22px 28px;overflow:auto;
+}
+
+/* cards grid */
+.grid {
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-bottom:18px;
+}
+.card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border-radius: var(--radius); padding:16px; box-shadow: var(--shadow);
+  border:1px solid var(--glass-border);
+  transition: transform 220ms;
+}
+.card:hover { transform: translateY(-6px); }
+
+/* stat block */
+.stat {
+  display:flex;align-items:center;gap:12px;
+}
+.stat .badge {
+  width:56px;height:56px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  font-size:20px;background:linear-gradient(135deg, rgba(122,91,255,0.12), rgba(85,240,255,0.06));
+  color:var(--neon-1);
+}
+.stat .info h3{font-size:20px;margin-bottom:6px}
+.stat .info p{color:var(--muted);font-size:13px}
+
+/* tables */
+.table { width:100%; border-collapse:collapse; font-size:14px; color: #d6e9ff }
+.table th, .table td { text-align:left;padding:12px;border-bottom:1px solid rgba(255,255,255,0.03) }
+.table th { color: #9fb4dd; font-weight:600; font-size:13px; background: transparent; }
+.status { padding:6px 10px;border-radius:999px;font-weight:600;font-size:12px;display:inline-block }
+.s-pending { background: rgba(255,205,92,0.12); color: #ffd66b }
+.s-processing { background: rgba(122,91,255,0.12); color: var(--neon-2) }
+.s-delivered { background: rgba(32,227,165,0.12); color: var(--success) }
+.s-cancelled { background: rgba(255,107,129,0.08); color: var(--danger) }
+
+/* live orders layout */
+.orders-viewport { display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap; }
+.orders-column { flex:1; min-width:320px; max-width:740px; }
+.orders-list { display:grid; gap:12px; }
+.order-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0.008));
+  border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,0.02);
+  display:flex;justify-content:space-between;gap:12px;align-items:center;
+}
+.order-meta { display:flex; gap:12px; align-items:center }
+.order-meta .oid { font-weight:700; color:var(--neon-1)}
+.order-actions button { margin-left:8px }
+
+/* map placeholder */
+.map {
+  background: linear-gradient(135deg, rgba(12,45,77,0.3), rgba(2,6,23,0.2));
+  border-radius:12px;padding:12px;height:420px;border:1px solid rgba(255,255,255,0.02);
+}
+
+/* warehouse shelf UI */
+.shelves { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap:16px; }
+.shelf {
+  padding:12px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.008));
+  border:1px solid rgba(255,255,255,0.02);
+}
+.shelf .row { display:flex;gap:8px; margin-bottom:8px; }
+.bin {
+  flex:1;padding:10px;border-radius:8px;background:linear-gradient(180deg, rgba(255,255,255,0.01),transparent);
+  text-align:center;font-weight:600;border:1px solid rgba(255,255,255,0.02);
+  position:relative; transition: transform 200ms;
+}
+.bin.low { box-shadow:0 6px 18px rgba(255,107,129,0.08); border:1px solid rgba(255,107,129,0.16); }
+.bin .qty { font-size:12px;color:var(--muted); margin-top:6px; font-weight:500 }
+
+/* HR management - only visible to HR/Admin */
+.hr-only{ display:block; }
+
+/* login page overlay */
+.login {
+  position:fixed; inset:0; display:flex;align-items:center;justify-content:center;
+  background: linear-gradient(90deg, rgba(2,6,23,0.6), rgba(6,10,26,0.6));
+  z-index:80; transition: opacity var(--smooth);
+}
+.login-card {
+  width:420px; border-radius:14px;padding:22px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border:1px solid rgba(255,255,255,0.03); box-shadow: var(--shadow);
+}
+
+/* form */
+.form-row { margin-bottom:12px }
+.label { color:var(--muted); font-size:13px;margin-bottom:6px; display:block }
+.input, select {
+  width:100%; padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:inherit;outline:none;
+}
+.btn-primary {
+  background: linear-gradient(90deg,var(--neon-2),var(--neon-1)); color:#001a24;border:none;padding:10px 14px;border-radius:10px;font-weight:700;cursor:pointer;
+}
+
+/* smaller components */
+.kv { font-size:13px;color:var(--muted) }
+.small { font-size:12px;color:var(--muted) }
+
+/* transitions */
+.fade-enter { opacity:0; transform: translateY(6px) }
+.fade-enter-active { opacity:1; transform: translateY(0); transition: all 240ms ease-out }
+.fade-exit { opacity:1 } .fade-exit-active { opacity:0; transform: translateY(6px); transition: all 180ms }
+
+/* responsive tweaks */
+@media (max-width:1000px){
+  .sidebar{ transform: translateX(-8px) }
+  .main{ margin-left: 80px }
+}
+@media (max-width:780px){
+  .sidebar{ position:fixed; transform: translateX(-100%); left:0 }
+  .sidebar.open{ transform: translateX(0) }
+  .main{ margin-left:0 }
+  .search input{ width:150px }
+}
+</style>
+</head>
+<body>
+<div id="app" class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="logo">QD</div>
+      <div>
+        <div style="font-size:13px;color:#bfe9ff">QuickDash</div>
+        <div style="font-size:12px;color:var(--muted)">Admin Panel</div>
+      </div>
+    </div>
+
+    <nav class="nav" id="nav">
+      <div class="nav-list">
+        <div class="section-title">MAIN</div>
+        <ul>
+          <li data-section="dashboard" class="active"><i class="fa-solid fa-house"></i><span>Dashboard</span></li>
+          <li data-section="orders"><i class="fa-solid fa-bell"></i><span>Live Orders</span></li>
+          <li data-section="riders"><i class="fa-solid fa-motorcycle"></i><span>Riders</span></li>
+          <li data-section="customers"><i class="fa-solid fa-users"></i><span>Customers</span></li>
+          <li data-section="warehouse"><i class="fa-solid fa-warehouse"></i><span>Warehouse (WMS)</span></li>
+          <li data-section="inventory"><i class="fa-solid fa-boxes-stacked"></i><span>Inventory</span></li>
+          <li data-section="analytics"><i class="fa-solid fa-chart-simple"></i><span>Analytics</span></li>
+        </ul>
+
+        <div class="section-title">ADMIN</div>
+        <ul>
+          <li data-section="hr" class="hr-only"><i class="fa-solid fa-user-gear"></i><span>HR Management</span></li>
+          <li data-section="settings"><i class="fa-solid fa-gear"></i><span>Settings</span></li>
+        </ul>
+      </div>
+
+      <div style="margin-top:18px;border-top:1px solid rgba(255,255,255,0.02);padding-top:14px">
+        <div style="display:flex;gap:10px;align-items:center">
+          <img id="profileAvatar" src="https://i.pravatar.cc/80?img=55" style="width:44px;height:44px;border-radius:10px" />
+          <div>
+            <div id="profileName" style="font-weight:700">Guest</div>
+            <div id="profileRole" style="font-size:12px;color:var(--muted)">Not logged</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button id="btnLogout" class="icon-btn" title="Logout" style="display:none"><i class="fa-solid fa-right-from-bracket"></i></button>
+          <button id="btnToggleSidebar" class="icon-btn" title="Toggle Sidebar"><i class="fa-solid fa-bars"></i></button>
+          <button id="btnTheme" class="icon-btn" title="Toggle Light/Dark"><i class="fa-solid fa-moon"></i></button>
+        </div>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main" id="main">
+    <!-- HEADER -->
+    <header class="header">
+      <div class="header-left">
+        <label for="" id="mobileOpen" style="display:none"></label>
+        <h1>QuickDash Admin</h1>
+        <div class="kv" id="timeNow"></div>
+      </div>
+
+      <div class="header-actions">
+        <div class="search">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input id="searchInput" placeholder="Search orders, riders, products..." />
+        </div>
+
+        <div class="user-profile" style="display:flex;gap:12px;align-items:center">
+          <div class="small" id="welcome">Welcome</div>
+          <img id="topAvatar" src="https://i.pravatar.cc/40?img=32" style="width:40px;height:40px;border-radius:10px" />
+        </div>
+      </div>
+    </header>
+
+    <!-- CONTENT -->
+    <section class="content" id="content">
+
+      <!-- DASHBOARD -->
+      <div class="page" id="dashboardPage">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div>
+            <h2 style="margin-bottom:6px">Dashboard Overview</h2>
+            <div class="small">QuickDash — Dark Neon Blue theme</div>
+          </div>
+          <div style="display:flex;gap:12px">
+            <button class="btn-primary" id="btnExport"><i class="fa-solid fa-download" style="margin-right:8px"></i>Export CSV</button>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="card stat">
+            <div class="badge"><i class="fa-solid fa-bell"></i></div>
+            <div class="info">
+              <h3 id="statOrders">1,294</h3>
+              <p>Total Orders Today</p>
+            </div>
+          </div>
+
+          <div class="card stat">
+            <div class="badge"><i class="fa-solid fa-motorcycle"></i></div>
+            <div class="info">
+              <h3 id="statRiders">342</h3>
+              <p>Active Riders</p>
+            </div>
+          </div>
+
+          <div class="card stat">
+            <div class="badge"><i class="fa-solid fa-users"></i></div>
+            <div class="info">
+              <h3 id="statCustomers">12,503</h3>
+              <p>Total Customers</p>
+            </div>
+          </div>
+
+          <div class="card stat">
+            <div class="badge"><i class="fa-solid fa-boxes-stacked"></i></div>
+            <div class="info">
+              <h3 id="statInventory">12,300</h3>
+              <p>Inventory Items</p>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:18px">
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+              <h3>Recent Orders</h3>
+              <div class="small">Live updates — demo only</div>
+            </div>
+            <div class="table-responsive">
+              <table class="table" id="tableRecentOrders">
+                <thead>
+                  <tr><th>Order</th><th>Customer</th><th>Amount</th><th>Status</th><th>Rider</th></tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Warehouse Snapshot</h3>
+            <div style="margin-top:12px">
+              <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+                <div>
+                  <div style="font-weight:700">3</div>
+                  <div class="small">Active Warehouses</div>
+                </div>
+                <div>
+                  <div style="font-weight:700">78%</div>
+                  <div class="small">Storage Fill</div>
+                </div>
+              </div>
+
+              <div style="height:180px;border-radius:10px;background:linear-gradient(135deg, rgba(122,91,255,0.06), rgba(85,240,255,0.04));display:flex;align-items:center;justify-content:center">
+                <div style="text-align:center;color:var(--muted)">
+                  <i class="fa-solid fa-map-location-dot" style="font-size:28px;color:var(--neon-1)"></i>
+                  <div class="small" style="margin-top:8px">Warehouse locations (demo)</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- LIVE ORDERS -->
+      <div class="page" id="ordersPage" style="display:none">
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div>
+            <h2>Live Orders</h2>
+            <div class="small">Manage, assign and track live orders — QuickDash Style</div>
+          </div>
+          <button class="btn-primary" id="btnNewOrder"><i class="fa-solid fa-plus" style="margin-right:8px"></i>New Order</button>
+        </div>
+
+        <div class="orders-viewport">
+          <!-- LEFT COLUMN = ORDER LIST -->
+          <div class="orders-column">
+            <div style="margin-bottom:8px"><strong>Incoming Orders</strong></div>
+            <div class="orders-list" id="ordersList"></div>
+          </div>
+
+          <!-- RIGHT COLUMN = SLIDING PANEL -->
+          <div id="orderDetailsPanel" style="
+            width:420px;
+            min-width:320px;
+            background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015));
+            border-left: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+            padding:18px;
+            height: calc(100vh - 130px);
+            position:sticky;
+            top:100px;
+            overflow:auto;
+            display:none;
+          ">
+
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <h3 id="panelOrderID">Order Details</h3>
+              <button class="icon-btn" onclick="closeOrderPanel()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <hr style="border-color:rgba(255,255,255,0.06);margin:12px 0">
+
+            <!-- BASIC INFO -->
+            <div>
+              <strong>Customer:</strong> <span id="panelCustomer"></span><br>
+              <strong>Phone:</strong> <span id="panelPhone"></span><br>
+              <strong>Address:</strong> <span id="panelAddress"></span><br>
+              <strong>Payment:</strong> <span id="panelPayment"></span><br>
+            </div>
+
+            <br>
+
+            <!-- STATUS CONTROL -->
+            <div>
+              <strong>Status</strong><br>
+              <select id="panelStatus" class="input" style="margin-top:6px;width:100%">
+                <option>Pending</option>
+                <option>Processing</option>
+                <option>Packed</option>
+                <option>Dispatched</option>
+                <option>Delivered</option>
+                <option>Cancelled</option>
+              </select>
+              <button class="btn-primary" style="margin-top:10px;width:100%" onclick="updatePanelStatus()">Update Status</button>
+            </div>
+
+            <br>
+
+            <!-- ASSIGN RIDER -->
+            <div>
+              <strong>Assigned Rider</strong><br>
+              <select id="panelRider" class="input" style="margin-top:6px;width:100%"></select>
+              <button class="btn-primary" style="margin-top:10px;width:100%" onclick="updatePanelRider()">Assign Rider</button>
+            </div>
+
+            <br>
+
+            <!-- TIMELINE -->
+            <div>
+              <strong>Order Timeline</strong>
+              <div id="panelTimeline" class="small" style="margin-top:6px;color:var(--muted)">—</div>
+            </div>
+
+            <br>
+
+            <!-- ITEMS -->
+            <div>
+              <strong>Items</strong>
+              <table class="table" style="margin-top:10px">
+                <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Action</th></tr></thead>
+                <tbody id="panelItems"></tbody>
+              </table>
+            </div>
+
+            <br>
+
+            <!-- ADVANCED ACTIONS -->
+            <div>
+              <button class="btn-primary" style="width:100%;margin-top:6px" onclick="forcePlace()">Force Place Order</button>
+              <button class="btn-primary" style="width:100%;margin-top:6px" onclick="markPacked()">Mark as Packed</button>
+              <button class="btn-primary" style="width:100%;margin-top:6px" onclick="markDispatched()">Mark as Dispatched</button>
+              <button class="btn-primary" style="width:100%;margin-top:6px" onclick="markDelivered()">Mark Delivered</button>
+              <button class="btn-primary" style="width:100%;margin-top:6px;background:#b83234" onclick="cancelWholeOrder()">Cancel Order</button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- RIDERS -->
+      <div class="page" id="ridersPage" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h2>Riders</h2>
+          <div><button id="btnAddRider" class="btn-primary"><i class="fa-solid fa-plus" style="margin-right:8px"></i>Add Rider</button></div>
+        </div>
+
+        <div class="card">
+          <div style="margin-bottom:10px"><strong>Active Riders</strong></div>
+          <div class="table-responsive">
+            <table class="table" id="tableRiders">
+              <thead><tr><th>Rider ID</th><th>Name</th><th>Orders</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- CUSTOMERS -->
+      <div class="page" id="customersPage" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h2>Customers</h2>
+        </div>
+
+        <div class="card">
+          <div class="table-responsive">
+            <table class="table" id="tableCustomers">
+              <thead><tr><th>Customer ID</th><th>Name</th><th>Email</th><th>Orders</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- WAREHOUSE / WMS -->
+      <div class="page" id="warehousePage" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h2>Warehouse Management (WMS)</h2>
+          <div><button id="btnNewBin" class="btn-primary"><i class="fa-solid fa-plus" style="margin-right:8px"></i>New Bin</button></div>
+        </div>
+
+        <div class="shelves" id="shelves"></div>
+      </div>
+
+      <!-- INVENTORY -->
+      <div class="page" id="inventoryPage" style="display:none">
+        <h2>Inventory</h2>
+        <div class="card">
+          <div class="table-responsive">
+            <table class="table" id="tableInventory">
+              <thead><tr><th>SKU</th><th>Product</th><th>Quantity</th><th>Low Stock?</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ANALYTICS -->
+      <div class="page" id="analyticsPage" style="display:none">
+        <h2>Analytics</h2>
+        <div class="grid">
+          <div class="card"><h3>Revenue</h3><p class="small">Demo chart placeholder</p></div>
+          <div class="card"><h3>Orders vs Time</h3><p class="small">Demo</p></div>
+        </div>
+      </div>
+
+      <!-- HR (Only HR/Admin) -->
+      <div class="page hr-only" id="hrPage" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h2>HR Management</h2>
+          <div class="small">Only HR and Admin can change roles</div>
+        </div>
+
+        <div class="card">
+          <h3>Employees</h3>
+          <div style="margin-top:12px" class="table-responsive">
+            <table class="table" id="tableEmployees">
+              <thead><tr><th>Name</th><th>Role</th><th>Action</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- SETTINGS -->
+      <div class="page" id="settingsPage" style="display:none">
+        <h2>Settings</h2>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <h3>Theme</h3>
+              <div class="small">Dark Neon Blue is default. Toggle light/dark below.</div>
+            </div>
+            <div>
+              <label class="small" style="display:block;margin-bottom:6px">Dark Mode</label>
+              <button id="btnTheme2" class="btn-primary"><i class="fa-solid fa-adjust" style="margin-right:8px"></i>Toggle</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- LOGIN OVERLAY (fake authentication) -->
+  <div class="login" id="loginOverlay" style="display:flex">
+    <div class="login-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div>
+          <h3 style="margin-bottom:6px">QuickDash — Login</h3>
+          <div class="small">Choose user role to demo RBAC (no password required)</div>
+        </div>
+        <div style="color:var(--muted);font-size:12px">Dark Neon Blue</div>
+      </div>
+
+      <div class="form-row">
+        <label class="label">Your name</label>
+        <input id="inputName" class="input" placeholder="Enter display name (e.g., Rahim)" />
+      </div>
+
+      <div class="form-row">
+        <label class="label">Role</label>
+        <select id="selectRole" class="input">
+          <option value="staff">Staff (Limited)</option>
+          <option value="manager">Manager (Orders & Riders)</option>
+          <option value="hr">HR (Manage Roles)</option>
+          <option value="admin">Admin (Full Access)</option>
+        </select>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+        <button id="btnLogin" class="btn-primary">Sign in</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Simple modal for assign rider / edit role -->
+  <div id="modal" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:90">
+    <div style="position:absolute;inset:0;background:rgba(2,6,23,0.6)"></div>
+    <div style="width:420px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;padding:18px;z-index:95;border:1px solid rgba(255,255,255,0.03);box-shadow:var(--shadow)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <strong id="modalTitle">Modal</strong>
+        <button id="modalClose" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="modalBody"></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:12px">
+        <button id="modalConfirm" class="btn-primary" style="display:none">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ===========================
+   Demo Data & State
+   =========================== */
+const demo = {
+  orders: [
+    { id:'QC-4821', customer:'John Smith', amount:42.5, status:'Pending', rider:null, timeline:['Ordered'], phone:'9876500011', address:'12 Baker St', payment:'COD', items:[{name:'Milk 1L', qty:2, price:65},{name:'Bread',qty:1,price:40}] },
+    { id:'QC-4820', customer:'Sarah Johnson', amount:68.75, status:'Processing', rider:'R-1025', timeline:['Ordered','Packed'], phone:'9876500022', address:'23 Park Ave', payment:'Online', items:[{name:'Eggs 12pc',qty:1,price:70}] },
+    { id:'QC-4819', customer:'Michael Brown', amount:125.99, status:'Delivered', rider:'R-1024', timeline:['Ordered','Packed','Dispatched','Delivered'], phone:'9876500033', address:'45 Lake Rd', payment:'Online', items:[{name:'Rice 5kg',qty:1,price:120}] },
+    { id:'QC-4818', customer:'Emily Davis', amount:34.20, status:'Cancelled', rider:null, timeline:['Ordered','Cancelled'], phone:'9876500044', address:'78 Hill St', payment:'COD', items:[{name:'Juice',qty:1,price:34}] }
+  ],
+  riders: [
+    { id:'R-1024', name:'David Miller', orders:12, status:'Active' },
+    { id:'R-1025', name:'Jennifer Lee', orders:9, status:'Active' },
+    { id:'R-1026', name:'James Taylor', orders:15, status:'On Break' },
+  ],
+  customers: [
+    { id:'C-8542', name:'Olivia Martinez', email:'olivia@example.com', orders:5 },
+    { id:'C-8541', name:'William Anderson', email:'william@example.com', orders:12 },
+  ],
+  inventory: [
+    { sku:'AM-001', name:'Amul Milk 1L', qty:65 },
+    { sku:'BR-020', name:'Brown Bread', qty:4 },
+    { sku:'EG-100', name:'Eggs 12pc', qty:2 },
+  ],
+  warehouses: [
+    { id:'W-1', name:'Central Warehouse', bins: [
+      { bin:'A-01', item:'Milk Packets', qty:320 },
+      { bin:'A-02', item:'Brown Bread', qty:42 },
+      { bin:'A-03', item:'Eggs', qty:8 },
+      { bin:'A-04', item:'Butter', qty:2 }
+    ]},
+    { id:'W-2', name:'North Depot', bins:[
+      { bin:'B-01', item:'Rice 5kg', qty:85 },
+      { bin:'B-02', item:'Flour', qty:50 },
+      { bin:'B-03', item:'Yeast', qty:3 }
+    ]}
+  ],
+  employees: [
+    { name:'Rahul', role:'Manager' },
+    { name:'Imran', role:'Staff' },
+    { name:'Neha', role:'HR' },
+  ]
+};
+
+let state = {
+  currentUser: null, // {name, role}
+  pages: ['dashboard','orders','riders','customers','warehouse','inventory','analytics','hr','settings'],
+  currentPage: 'dashboard',
+  darkMode: true
+};
+
+/* ===========================
+   Helpers
+   =========================== */
+const el = id => document.getElementById(id);
+const q = sel => document.querySelector(sel);
+const qa = sel => document.querySelectorAll(sel);
+
+function formatCurrency(v){ return '₹'+ (typeof v==='number' ? v.toFixed(2) : v) }
+
+/* ===========================
+   Login flow (fake)
+   =========================== */
+function showLogin(show=true){
+  el('loginOverlay').style.display = show ? 'flex' : 'none';
+}
+function login(name,role){
+  state.currentUser = { name: name || 'Guest', role };
+  el('profileName').textContent = state.currentUser.name;
+  el('profileRole').textContent = role.toUpperCase();
+  el('welcome').textContent = `Hi, ${state.currentUser.name}`;
+  el('btnLogout').style.display = 'inline-block';
+  showLogin(false);
+  sessionStorage.setItem('qd_role', role);
+  sessionStorage.setItem('qd_name', state.currentUser.name);
+  applyRBAC();
+  navigateTo('dashboard');
+}
+
+/* ===========================
+   RBAC: show/hide HR-only sections & actions
+   =========================== */
+function applyRBAC(){
+  const role = state.currentUser?.role || 'staff';
+  qa('.hr-only').forEach(el => {
+    if(role === 'admin' || role === 'hr') el.style.display = '';
+    else el.style.display = 'none';
+  });
+  updateEmployeesTable();
+  const settingsLi = [...qa('[data-section="settings"]')][0];
+  if(settingsLi){
+    settingsLi.style.display = (role === 'admin' ? '' : '');
+  }
+  el('btnLogout').style.display = state.currentUser ? 'inline-block' : 'none';
+}
+
+/* ===========================
+   Navigation
+   =========================== */
+function setActiveNavItem(section){
+  qa('.nav li').forEach(li=>{
+    if(li.getAttribute('data-section')===section) li.classList.add('active'); else li.classList.remove('active');
+  });
+}
+function navigateTo(section){
+  if(!state.pages.includes(section)) section='dashboard';
+  if(section === 'hr' && !['hr','admin'].includes(state.currentUser?.role)) {
+    alert('Access denied — HR only.');
+    return;
+  }
+  state.currentPage = section;
+  setActiveNavItem(section);
+  qa('.page').forEach(p => p.style.display = 'none');
+  const elp = el(section + 'Page') || el('dashboardPage');
+  if(elp) elp.style.display = '';
+}
+
+/* ===========================
+   Render demo tables
+   =========================== */
+function renderRecentOrders(){
+  const tbody = q('#tableRecentOrders tbody');
+  tbody.innerHTML = '';
+  demo.orders.forEach(o=>{
+    const tr = document.createElement('tr');
+    const statusClass = o.status==='Pending' ? 's-pending' : o.status==='Processing' ? 's-processing' : o.status==='Delivered' ? 's-delivered' : 's-cancelled';
+    tr.innerHTML = `<td><strong>${o.id}</strong></td><td>${o.customer}</td><td>${formatCurrency(o.amount)}</td><td><span class="status ${statusClass}">${o.status}</span></td><td>${o.rider||'—'}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderOrdersList(){
+  const container = el('ordersList');
+  container.innerHTML = '';
+  demo.orders.forEach((o,idx)=>{
+    const div = document.createElement('div');
+    div.className = 'order-card';
+    const statusColor = o.status==='Pending' ? 's-pending' : o.status==='Processing' ? 's-processing' : o.status==='Delivered' ? 's-delivered' : 's-cancelled';
+    div.innerHTML = `
+      <div class="order-meta">
+        <div>
+          <div class="oid">${o.id}</div>
+          <div class="small">${o.customer} • ${formatCurrency(o.amount)}</div>
+        </div>
+      </div>
+      <div style="text-align:right" class="order-actions">
+        <div><span class="status ${statusColor}">${o.status}</span></div>
+        <div style="margin-top:8px">
+          <button class="btn-primary btn-sm" data-action="view" data-idx="${idx}">View</button>
+          <button class="btn-primary btn-sm" data-action="assign" data-idx="${idx}">Assign</button>
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function renderRiders(){
+  const tbody = q('#tableRiders tbody');
+  tbody.innerHTML = '';
+  demo.riders.forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${r.id}</td><td>${r.name}</td><td>${r.orders}</td><td>${r.status}</td><td><button class="btn-primary btn-sm" data-rider="${r.id}">Profile</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderCustomers(){
+  const tbody = q('#tableCustomers tbody');
+  tbody.innerHTML = '';
+  demo.customers.forEach(c=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${c.id}</td><td>${c.name}</td><td>${c.email}</td><td>${c.orders}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderInventory(){
+  const tbody = q('#tableInventory tbody');
+  tbody.innerHTML = '';
+  demo.inventory.forEach(i=>{
+    const low = i.qty <= 5;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i.sku}</td><td>${i.name}</td><td>${i.qty}</td><td>${low ? '<span style="color:'+getComputedStyle(document.documentElement).getPropertyValue('--danger')+'">Yes</span>' : 'No'}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderShelves(){
+  const container = el('shelves'); container.innerHTML='';
+  demo.warehouses.forEach(w=>{
+    const s = document.createElement('div'); s.className='shelf';
+    s.innerHTML = `<h4 style="margin-bottom:10px">${w.name}</h4>`;
+    for(let i=0;i<w.bins.length;i+=2){
+      const row = document.createElement('div'); row.className='row';
+      const b1 = w.bins[i];
+      const b2 = w.bins[i+1];
+      const binEl = createBinEl(b1);
+      row.appendChild(binEl);
+      if(b2) row.appendChild(createBinEl(b2));
+      s.appendChild(row);
+    }
+    container.appendChild(s);
+  });
+
+  function createBinEl(b){
+    const div = document.createElement('div'); div.className='bin';
+    if(b.qty <= 5) div.classList.add('low');
+    div.innerHTML = `<div style="font-weight:700">${b.bin}</div><div style="font-size:13px;margin-top:6px">${b.item}</div><div class="qty">${b.qty} pcs</div>`;
+    return div;
+  }
+}
+
+function updateEmployeesTable(){
+  const tbody = q('#tableEmployees tbody');
+  if(!tbody) return;
+  tbody.innerHTML = '';
+  demo.employees.forEach((emp, idx)=>{
+    const tr = document.createElement('tr');
+    const roleSelect = document.createElement('select');
+    roleSelect.innerHTML = `<option>Staff</option><option>Manager</option><option>HR</option><option>Admin</option>`;
+    roleSelect.value = emp.role;
+    if(!['hr','admin'].includes(state.currentUser?.role)) roleSelect.disabled = true;
+    roleSelect.dataset.idx = idx;
+    roleSelect.addEventListener('change', (e)=>{
+      const i = e.target.dataset.idx;
+      demo.employees[i].role = e.target.value;
+      alert(`Role changed for ${demo.employees[i].name} → ${e.target.value} (demo)`);
+      renderEmployeesTable();
+    });
+    const tdAction = document.createElement('td');
+    tdAction.appendChild(roleSelect);
+    tr.innerHTML = `<td>${emp.name}</td>`;
+    tr.appendChild(tdAction);
+    tbody.appendChild(tr);
+  });
+}
+
+function renderEmployeesTable(){
+  const tbody = q('#tableEmployees tbody');
+  if(!tbody) return;
+  tbody.innerHTML = '';
+  demo.employees.forEach((emp, idx)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${emp.name}</td><td>${emp.role}</td><td></td>`;
+    const td = tr.children[2];
+    if(['hr','admin'].includes(state.currentUser?.role)){
+      const btn = document.createElement('button'); btn.className='btn-primary'; btn.textContent='Edit';
+      btn.addEventListener('click', ()=> openEditEmployeeModal(idx));
+      td.appendChild(btn);
+    } else {
+      td.innerHTML = `<span class="small">No permission</span>`;
+    }
+    tbody.appendChild(tr);
+  });
+}
+
+/* ===========================
+   Modal helpers
+   =========================== */
+function openModal(title, html, opts={}){
+  el('modalTitle').textContent = title;
+  el('modalBody').innerHTML = html;
+  el('modalConfirm').style.display = opts.showConfirm ? 'inline-block' : 'none';
+  el('modal').style.display = 'flex';
+  if(opts.onConfirm){
+    el('modalConfirm').onclick = ()=>{ opts.onConfirm(); closeModal(); };
+  } else {
+    el('modalConfirm').onclick = null;
+  }
+}
+function closeModal(){ el('modal').style.display = 'none'; }
+
+/* ===========================
+   Actions & Order Panel (Zepto-style)
+   =========================== */
+let selectedOrderIndex = null;
+
+function openOrderPanel(idx){
+  selectedOrderIndex = idx;
+  const o = demo.orders[idx];
+
+  el("panelOrderID").textContent = o.id;
+  el("panelCustomer").textContent = o.customer;
+  el("panelPhone").textContent = o.phone || "9999999999";
+  el("panelAddress").textContent = o.address || "Not set";
+  el("panelPayment").textContent = o.payment || "COD";
+
+  el("panelStatus").value = o.status;
+
+  el("panelRider").innerHTML = demo.riders
+    .map(r => `<option value="${r.id}" ${o.rider === r.id ? "selected":""}>${r.name}</option>`)
+    .join("");
+
+  el("panelTimeline").textContent = o.timeline.join(" → ");
+
+  el("panelItems").innerHTML = o.items
+    .map((item, i) => `
+      <tr>
+        <td>${item.name}</td>
+        <td>${item.qty}</td>
+        <td>₹${item.price}</td>
+        <td><button class="btn-primary btn-sm" onclick="cancelItem(${i})">Cancel</button></td>
+      </tr>
+    `)
+    .join("");
+
+  el("orderDetailsPanel").style.display = "block";
+}
+
+function closeOrderPanel(){
+  el("orderDetailsPanel").style.display = "none";
+}
+
+function updatePanelStatus(){
+  if(selectedOrderIndex === null) return;
+  const o = demo.orders[selectedOrderIndex];
+  o.status = el("panelStatus").value;
+  o.timeline.push(o.status);
+  renderOrdersList();
+  attachOrderActions();
+  alert("Status updated");
+}
+
+function updatePanelRider(){
+  if(selectedOrderIndex === null) return;
+  const o = demo.orders[selectedOrderIndex];
+  o.rider = el("panelRider").value;
+  o.timeline.push("Assigned: " + o.rider);
+  renderOrdersList();
+  attachOrderActions();
+  alert("Rider assigned");
+}
+
+function cancelItem(i){
+  demo.orders[selectedOrderIndex].items.splice(i, 1);
+  openOrderPanel(selectedOrderIndex);
+  alert("Item cancelled");
+}
+
+function forcePlace(){ alert("Force placed (demo)"); }
+function markPacked(){ alert("Marked Packed"); }
+function markDispatched(){ alert("Marked Dispatched"); }
+function markDelivered(){ alert("Delivered"); }
+function cancelWholeOrder(){ alert("Order Cancelled"); }
+
+function attachOrderActions(){
+  qa('[data-action="view"]').forEach(btn=>{
+    btn.onclick = e =>{
+      openOrderPanel(+btn.dataset.idx);
+    };
+  });
+
+  qa('[data-action="assign"]').forEach(btn=>{
+    btn.onclick = (e)=>{
+      const idx = +e.target.dataset.idx;
+      const order = demo.orders[idx];
+      let html = `<div class="form-row"><label class="label">Assign Rider</label><select id="selectRider" class="input">`;
+      demo.riders.forEach(r=> html += `<option value="${r.id}">${r.name} (${r.id})</option>`);
+      html += '</select></div>';
+      openModal(`Assign rider to ${order.id}`, html, { showConfirm:true, onConfirm: ()=>{
+        const riderId = el('selectRider').value;
+        order.rider = riderId;
+        order.status = 'Processing';
+        order.timeline.push('Assigned to '+riderId);
+        renderOrdersList(); attachOrderActions(); renderRecentOrders();
+      }});
+    };
+  });
+}
+
+/* ===========================
+   Add Event Listeners
+   =========================== */
+(function init(){
+  el('btnLogin').addEventListener('click', ()=>{
+    const name = el('inputName').value.trim() || 'Guest';
+    const role = el('selectRole').value;
+    login(name, role);
+  });
+  const savedRole = sessionStorage.getItem('qd_role');
+  const savedName = sessionStorage.getItem('qd_name');
+  if(savedRole){
+    login(savedName || 'Guest', savedRole);
+  }
+
+  qa('.nav li').forEach(li=>{
+    li.addEventListener('click', (e)=>{
+      const sec = li.getAttribute('data-section');
+      navigateTo(sec);
+    });
+  });
+
+  el('btnLogout').addEventListener('click', ()=>{
+    sessionStorage.removeItem('qd_role'); sessionStorage.removeItem('qd_name');
+    state.currentUser = null;
+    showLogin(true);
+    el('profileName').textContent = 'Guest';
+    el('profileRole').textContent = 'Not logged';
+    el('btnLogout').style.display = 'none';
+  });
+
+  function applyTheme(dark){
+    state.darkMode = dark;
+    if(!dark) document.documentElement.classList.add('light'); else document.documentElement.classList.remove('light');
+    localStorage.setItem('qd_dark', dark ? '1' : '0');
+  }
+  const savedDark = localStorage.getItem('qd_dark');
+  applyTheme(savedDark !== '0');
+  el('btnTheme').addEventListener('click', ()=> applyTheme(!state.darkMode));
+  el('btnTheme2').addEventListener('click', ()=> applyTheme(!state.darkMode));
+
+  el('btnToggleSidebar').addEventListener('click', ()=>{
+    document.querySelector('.sidebar').classList.toggle('open');
+  });
+
+  el('modalClose').addEventListener('click', closeModal);
+
+  el('btnNewOrder').addEventListener('click', ()=>{
+    openModal('Create demo order', `<div class="form-row"><label class="label">Customer</label><input id="newCust" class="input" placeholder="Customer name"/></div>
+      <div class="form-row"><label class="label">Amount</label><input id="newAmt" class="input" placeholder="Amount"/></div>`, {
+      showConfirm:true, onConfirm: ()=>{
+        const cust = el('newCust').value || 'Anonymous';
+        const amt = parseFloat(el('newAmt').value) || 0;
+        const oid = 'QC-'+(Math.floor(Math.random()*9000)+1000);
+        demo.orders.unshift({ id:oid, customer:cust, amount:amt, status:'Pending', rider:null, timeline:['Ordered'], phone:'9999999', address:'Not set', payment:'COD', items:[] });
+        renderOrdersList(); renderRecentOrders(); attachOrderActions();
+        alert('Order created (demo)');
+      }
+    });
+  });
+
+  el('btnAddRider').addEventListener('click', ()=>{
+    openModal('Add Rider', `<div class="form-row"><label class="label">Name</label><input id="rname" class="input"></div>`, {
+      showConfirm:true, onConfirm: ()=>{
+        const nm = el('rname').value || 'New Rider';
+        const rid = 'R-'+(1000 + Math.floor(Math.random()*9000));
+        demo.riders.push({ id:rid, name:nm, orders:0, status:'Active' });
+        renderRiders(); alert('Rider added (demo)');
+      }
+    });
+  });
+
+  el('btnNewBin').addEventListener('click', ()=>{
+    openModal('Create Bin (demo)', `<div class="form-row"><label class="label">Warehouse</label><select id="selWh" class="input">${demo.warehouses.map((w,i)=>`<option value="${i}">${w.name}</option>`).join('')}</select></div>
+      <div class="form-row"><label class="label">Bin ID</label><input id="binId" class="input" /></div>
+      <div class="form-row"><label class="label">Item</label><input id="binItem" class="input" /></div>
+      <div class="form-row"><label class="label">Qty</label><input id="binQty" class="input" /></div>`, {
+      showConfirm:true, onConfirm: ()=>{
+        const wi = +el('selWh').value;
+        const bin = el('binId').value || 'X-00';
+        const item = el('binItem').value || 'Item';
+        const qty = parseInt(el('binQty').value) || 0;
+        demo.warehouses[wi].bins.push({ bin, item, qty });
+        renderShelves();
+        alert('Bin created (demo)');
+      }
+    });
+  });
+
+  renderRecentOrders(); renderOrdersList(); renderRiders(); renderCustomers(); renderInventory(); renderShelves(); renderEmployeesTable();
+
+  setTimeout(()=>{ attachOrderActions(); }, 200);
+
+  document.addEventListener('click', (e)=>{
+    if(e.target.matches('[data-rider]')) {
+      alert('Rider profile (demo): '+ e.target.dataset.rider);
+    }
+  });
+
+  el('searchInput').addEventListener('input', (ev)=>{
+    const qv = ev.target.value.toLowerCase();
+    const filtered = demo.orders.filter(o => o.id.toLowerCase().includes(qv) || o.customer.toLowerCase().includes(qv));
+    const container = el('ordersList'); container.innerHTML = '';
+    filtered.forEach((o, idx) => {
+      const div = document.createElement('div'); div.className='order-card';
+      const statusColor = o.status==='Pending' ? 's-pending' : o.status==='Processing' ? 's-processing' : o.status==='Delivered' ? 's-delivered' : 's-cancelled';
+      div.innerHTML = `<div class="order-meta"><div><div class="oid">${o.id}</div><div class="small">${o.customer} • ${formatCurrency(o.amount)}</div></div></div>
+        <div style="text-align:right" class="order-actions"><div><span class="status ${statusColor}">${o.status}</span></div><div style="margin-top:8px"><button class="btn-primary btn-sm" data-action="view" data-idx="${idx}">View</button><button class="btn-primary btn-sm" data-action="assign" data-idx="${idx}">Assign</button></div></div>`;
+      container.appendChild(div);
+    });
+    attachOrderActions();
+  });
+
+  function tick(){
+    const now = new Date();
+    el('timeNow').textContent = now.toLocaleString();
+  }
+  tick(); setInterval(tick, 60000);
+
+  qa('.nav li').forEach(li=>{
+    li.addEventListener('click', ()=> {
+      const s = li.getAttribute('data-section');
+      navigateTo(s);
+    });
+  });
+
+})();
+</script>
+</body>
+</html>
