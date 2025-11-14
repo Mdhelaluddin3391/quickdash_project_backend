@@ -7,18 +7,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    <link rel="stylesheet" href="{% static 'css/index_style.css' %}"> <link rel="stylesheet" href="{% static 'css/category_list_style.css' %}"> <title>QuickDash - All Categories</title>
+    <link rel="stylesheet" href="{% static 'css/index_style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/category_list_style.css' %}">
+    <title>QuickDash - All Categories</title>
 
     <style>
-        /* Loading indicator ke liye simple style */
         .loader {
             text-align: center;
             padding: 40px;
             font-size: 1.2rem;
             color: var(--text-muted);
+        }
+        /* NAYA: Image icon fix */
+        .category-icon-large .category-image {
+            width: 50px;
+            height: 50px;
+            object-fit: contain;
         }
     </style>
 </head>
@@ -30,16 +37,15 @@
             <i class="fas fa-arrow-left"></i>
         </a>
         <h1 class="header-title">All Categories</h1>
-        <div class="header-placeholder"></div> </header>
+        <div class="header-placeholder"></div>
+    </header>
 
     <main class="category-list-main">
-        
         <div class="category-grid" id="category-grid-container">
             <div class="loader" id="loading-indicator">
                 <i class="fas fa-spinner fa-spin"></i> Loading categories...
             </div>
-
-            </div>
+        </div>
     </main>
 
     <script>
@@ -48,10 +54,8 @@
             const container = document.getElementById('category-grid-container');
             const loader = document.getElementById('loading-indicator');
 
-            // 1. Category data fetch karne ke liye function
             async function fetchCategories() {
                 try {
-                    // API endpoint (store/urls.py se)
                     const response = await fetch('/api/store/categories/');
                     
                     if (!response.ok) {
@@ -59,8 +63,6 @@
                     }
                     
                     const categories = await response.json();
-                    
-                    // Data milne ke baad, render function ko call karein
                     renderCategories(categories);
 
                 } catch (error) {
@@ -69,9 +71,7 @@
                 }
             }
 
-            // 2. Categories ko HTML mein render karne ka function
             function renderCategories(categories) {
-                // Loader ko hatayein
                 container.innerHTML = ''; 
 
                 if (!categories || categories.length === 0) {
@@ -80,26 +80,32 @@
                 }
 
                 categories.forEach(category => {
-                    // Data aapke CategorySerializer ke hisaab se (name, icon, slug, children)
-                    
-                    // Parent Category
+                    // NAYA: Image icon fix
+                    const iconHtml = category.icon
+                        ? `<img src="${category.icon}" alt="${category.name}" class="category-image">`
+                        : `<i class="fas fa-tag"></i>`; // Default icon
+
                     const categoryHtml = `
                         <a href="/category/${category.slug}/" class="category-list-card">
                             <div class="category-icon-large">
-                                <i class="${category.icon || 'fas fa-tag'}"></i> 
+                                ${iconHtml}
                             </div>
                             <h3>${category.name}</h3>
                         </a>
                     `;
                     container.innerHTML += categoryHtml;
 
-                    // Agar 'children' (sub-categories) hain, toh unhe bhi render karein
+                    // Sub-categories (agar hain toh)
                     if (category.children && category.children.length > 0) {
                         category.children.forEach(child => {
+                            const childIconHtml = child.icon
+                                ? `<img src="${child.icon}" alt="${child.name}" class="category-image">`
+                                : `<i class="fas fa-tag"></i>`;
+
                             const childHtml = `
                                 <a href="/category/${child.slug}/" class="category-list-card sub-category">
                                     <div class="category-icon-large">
-                                        <i class="${child.icon || 'fas fa-tag'}"></i> 
+                                        ${childIconHtml}
                                     </div>
                                     <h3>${child.name}</h3>
                                 </a>
@@ -110,11 +116,9 @@
                 });
             }
 
-            // 3. Page load par main function ko call karein
             fetchCategories();
         });
     </script>
 
 </body>
-
 </html>

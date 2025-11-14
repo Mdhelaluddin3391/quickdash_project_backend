@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic" com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <link rel="stylesheet" href="{% static 'css/index_style.css' %}">
@@ -16,14 +16,12 @@
     <title>QuickDash - Checkout</title>
 
     <style>
-        /* Loading/Error indicator ke liye */
         .status-message {
             text-align: center;
             padding: 40px;
             font-size: 1.2rem;
             color: var(--text-muted);
         }
-        /* Error message style */
         .error-message {
             color: #ff4d4d;
             background-color: #ffdada;
@@ -58,7 +56,8 @@
             <section class="checkout-section">
                 <h2 class="section-title">Delivery Address</h2>
                 <div class="address-list" id="address-list-container">
-                    </div>
+                    <p>Loading addresses...</p>
+                </div>
                 <a href="#" class="add-new-address-btn">+ Add New Address</a>
             </section>
 
@@ -87,18 +86,7 @@
             <section class="checkout-section">
                 <h2 class="section-title">Bill Summary</h2>
                 <div class="bill-card" id="bill-summary-container">
-                    <div class="bill-row">
-                        <span>Subtotal</span>
-                        <span>...</span>
-                    </div>
-                    <div class="bill-row">
-                        <span>Delivery Fee</span>
-                        <span>...</span>
-                    </div>
-                    <div class="bill-row total-row">
-                        <span>Grand Total</span>
-                        <span>...</span>
-                    </div>
+                    <p>Loading bill...</p>
                 </div>
             </section>
 
@@ -132,63 +120,99 @@
 
             let accessToken = '';
 
-            // --- 2. Authentication Check ---
-            function checkAuth() {
-                accessToken = localStorage.getItem('accessToken');
-                if (!accessToken) {
-                    // Agar login nahi hai, toh auth page par bhejo
-                    window.location.href = "{% url 'web:auth' %}?next={% url 'web:checkout' %}";
+            // --- 2. Helper Functions (Auth, CSRF) ---
+            function getAuthToken() {
+                const token = localStorage.getItem('accessToken');
+                if (!token) {
+                    window.location.href = `{% url 'web:auth' %}?next={% url 'web:checkout' %}`;
+                    return null;
+                }
+                return token;
+            }
+
+            function getCsrfToken() {
+                return document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+            }
+            
+            // NAYA: Token Refresh Logic (cart.html se copy kiya)
+            async function refreshToken() {
+                const refresh = localStorage.getItem('refreshToken');
+                if (!refresh) return false;
+                try {
+                    const response = await fetch('/api/token/refresh/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ refresh: refresh })
+                    });
+                    if (!response.ok) return false;
+                    const data = await response.json();
+                    localStorage.setItem('accessToken', data.access);
+                    accessToken = data.access;
+                    return true;
+                } catch (e) {
                     return false;
                 }
-                return true;
             }
-
-            // --- 3. Helper Functions: API Calls ---
             
-            // Function to fetch Cart
-            async function fetchCart() {
-                const response = await fetch('/api/cart/', {
-                    headers: { 'Authorization': `Bearer ${accessToken}` }
-                });
-                if (!response.ok) throw new Error('Could not fetch cart.');
-                return response.json();
+            // NAYA: API Fetcher (401 retry ke saath)
+            async function fetchAuthenticated(url, options = {}, isRetry = false) {
+                options.headers = {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                    ...options.headers
+                };
+
+                const response = await fetch(url, options);
+
+                if (response.status === 401 && !isRetry) {
+                    const refreshed = await refreshToken();
+                    if (refreshed) {
+                        return fetchAuthenticated(url, options, true); // Retry
+                    } else {
+                        getAuthToken(); // Redirect to login
+                        return null; // Stop execution
+                    }
+                }
+                return response;
             }
 
-            // Function to fetch User Profile
-            async function fetchProfile() {
-                const response = await fetch('/api/accounts/profile/', {
-                    headers: { 'Authorization': `Bearer ${accessToken}` }
-                });
-                if (!response.ok) throw new Error('Could not fetch profile.');
-                return response.json();
-            }
-
-            // --- 4. Main Function: Page Load Data ---
+            // --- 3. Main Function: Page Load Data ---
             async function loadCheckoutData() {
                 try {
-                    // Dono APIs ko ek saath call karein
-                    const [cartData, profileData] = await Promise.all([
-                        fetchCart(),
-                        fetchProfile()
+                    // Ek saath dono API call karein
+                    const [cartResponse, profileResponse] = await Promise.all([
+                        fetchAuthenticated('/api/cart/'),
+                        fetchAuthenticated('/api/accounts/profile/')
                     ]);
+
+                    if (!cartResponse || !profileResponse) return; // Auth fail hua
+
+                    if (!cartResponse.ok || !profileResponse.ok) {
+                        throw new Error('Could not load details. Please go back.');
+                    }
                     
-                    // Dono data milne ke baad render karein
+                    const cartData = await cartResponse.json();
+                    const profileData = await profileResponse.json();
+                    
+                    // Cart check: Agar cart khaali hai toh wapas bhej do
+                    if (!cartData.items || cartData.items.length === 0) {
+                        mainContainer.innerHTML = `<p class="status-message">Your cart is empty.<br/><a href="{% url 'web:index' %}">Go shopping</a></p>`;
+                        return;
+                    }
+                    
                     renderBillSummary(cartData.totals);
                     renderAddresses(profileData.addresses);
                     
-                    // Loader chupayein aur form dikhayein
                     loader.style.display = 'none';
                     checkoutForm.style.display = 'block';
 
                 } catch (error) {
                     console.error("Checkout data load karne mein error:", error);
-                    mainContainer.innerHTML = `<p class="status-message">${error.message} Please go back.</p>`;
+                    mainContainer.innerHTML = `<p class="status-message">${error.message}</p>`;
                 }
             }
 
-            // --- 5. Render Functions ---
-            
-            // Function to render Bill Summary
+            // --- 4. Render Functions ---
             function renderBillSummary(totals) {
                 billContainer.innerHTML = `
                     <div class="bill-row">
@@ -204,28 +228,24 @@
                         <span>₹${totals.grand_total}</span>
                     </div>
                 `;
-                // Neeche wala total bar bhi update karein
                 barTotalPrice.innerText = `₹${totals.grand_total}`;
             }
 
-            // Function to render Addresses
             function renderAddresses(addresses) {
-                addressContainer.innerHTML = ''; // Saaf karein
+                addressContainer.innerHTML = '';
                 if (!addresses || addresses.length === 0) {
                     addressContainer.innerHTML = '<p>No saved addresses. Please add one.</p>';
-                    // TODO: Yahan "Add New Address" form dikha sakte hain
                     return;
                 }
 
                 addresses.forEach((address, index) => {
-                    // Pehle address ko default mein checked rakhein
-                    const isChecked = (index === 0) ? 'checked' : '';
+                    const isChecked = (address.is_default || index === 0) ? 'checked' : '';
                     
                     const addressHtml = `
                         <div class="address-card">
                             <input type="radio" name="address" id="addr-${address.id}" value="${address.id}" ${isChecked}>
                             <label for="addr-${address.id}">
-                                <i class="fas ${address.address_type === 'Home' ? 'fa-home' : 'fa-briefcase'}"></i>
+                                <i class="fas ${address.address_type === 'HOME' ? 'fa-home' : 'fa-briefcase'}"></i>
                                 <div class="address-details">
                                     <h3>${address.address_type}</h3>
                                     <p>${address.full_address}</p>
@@ -238,12 +258,11 @@
                 });
             }
 
-            // --- 6. Form Submission: Order Place Karna ---
+            // --- 5. Form Submission: Order Place Karna ---
             async function handlePlaceOrder(e) {
-                e.preventDefault(); // Form ko submit hone se rokein
-                errorContainer.innerHTML = ''; // Purana error hatayein
+                e.preventDefault();
+                errorContainer.innerHTML = '';
                 
-                // Button ko disable karein
                 placeOrderBtn.disabled = true;
                 placeOrderBtn.innerText = 'Placing Order...';
 
@@ -257,17 +276,12 @@
                     return;
                 }
                 
-                // Hum abhi sirf 'COD' support kar rahe hain
-                const paymentMethod = 'COD';
+                const paymentMethod = 'COD'; // Hardcoded
 
                 try {
-                    const response = await fetch('/api/orders/checkout/', {
+                    const response = await fetchAuthenticated('/api/orders/checkout/', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': '{{ csrf_token }}',
-                            'Authorization': `Bearer ${accessToken}`
-                        },
+                        headers: { 'X-CSRFToken': getCsrfToken() },
                         body: JSON.stringify({
                             delivery_address_id: parseInt(selectedAddressId),
                             payment_method: paymentMethod
@@ -276,15 +290,14 @@
 
                     const result = await response.json();
 
-                    if (!response.ok) { // 400 Bad Request (e.g., cart empty)
+                    if (!response.ok) { // 400 Bad Request (e.g., cart empty, out of stock)
                         throw new Error(result.detail || 'Could not place order.');
                     }
                     
                     // SUCCESS!
-                    // Order successful hone par order_success page par bhejo
-                    // Hum order ID bhi pass kar sakte hain (agar API return karta hai)
-                    // Abhi ke liye, hum bas redirect karte hain
-                    window.location.href = "{% url 'web:order-success' %}";
+                    // NAYA: Order ID ko success page par pass karein
+                    const orderId = result.id || '';
+                    window.location.href = `{% url 'web:order-success' %}?order_id=${orderId}`;
 
                 } catch (error) {
                     console.error('Order place karne mein error:', error);
@@ -294,14 +307,14 @@
                 }
             }
 
-            // --- 7. Event Listeners ---
+            // --- 6. Event Listeners ---
             checkoutForm.addEventListener('submit', handlePlaceOrder);
 
-            // --- 8. Page Load Par Shuru Karein ---
-            if (checkAuth()) {
+            // --- 7. Page Load Par Shuru Karein ---
+            accessToken = getAuthToken();
+            if (accessToken) {
                 loadCheckoutData();
             }
-
         });
     </script>
 

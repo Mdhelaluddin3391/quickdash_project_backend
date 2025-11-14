@@ -7,19 +7,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <link rel="stylesheet" href="{% static 'css/index_style.css' %}">
     <link rel="stylesheet" href="{% static 'css/order_detail_style.css' %}">
     
     <title>QuickDash - Order Details</title>
-
     <style>
-        /* Loading/Error indicator ke liye */
         .status-message {
             text-align: center;
-            padding: 50px;
+            padding: 40px;
             font-size: 1.2rem;
             color: var(--text-muted);
         }
@@ -32,124 +30,179 @@
         <a href="{% url 'web:profile' %}" class="back-button">
             <i class="fas fa-arrow-left"></i>
         </a>
-        <h1 class="header-title" id="header-title">Order Details</h1>
+        <h1 class="header-title" id="order-title">Order Details</h1>
         <div class="header-placeholder"></div>
     </header>
 
     <main id="main-content-container">
-
+        
         <div class="status-message" id="loading-indicator">
             <i class="fas fa-spinner fa-spin"></i> Loading order details...
         </div>
 
-        </main>
+        <div id="order-content" style="display: none;">
+            <section class="order-status-section">
+                <div class="status-header">
+                    <h2 id="order-id">Order #...</h2>
+                    <span class="status-badge" id="order-status">...</span>
+                </div>
+                <p id="order-date">Placed on ...</p>
+            </section>
+
+            <section class="order-summary-section">
+                <h3>Order Summary</h3>
+                <div class="item-list" id="item-list-container">
+                    </div>
+            </section>
+
+            <section class="order-details-section">
+                <h3>Bill Details</h3>
+                <div class="bill-card" id="bill-summary-container">
+                    </div>
+            </section>
+
+            <section class="order-details-section">
+                <h3>Delivery Address</h3>
+                <div class="address-card" id="address-container">
+                    </div>
+            </section>
+        </div>
+
+    </main>
 
     <script>
+        // NAYA: Poora JavaScript is page ko dynamic banane ke liye
         document.addEventListener('DOMContentLoaded', () => {
 
             // --- 1. Zaroori Elements ---
             const mainContainer = document.getElementById('main-content-container');
             const loader = document.getElementById('loading-indicator');
-            const headerTitle = document.getElementById('header-title');
+            const orderContent = document.getElementById('order-content');
+            const orderTitle = document.getElementById('order-title');
+
+            // Sections
+            const orderIdElement = document.getElementById('order-id');
+            const orderStatusElement = document.getElementById('order-status');
+            const orderDateElement = document.getElementById('order-date');
+            const itemsContainer = document.getElementById('item-list-container');
+            const billContainer = document.getElementById('bill-summary-container');
+            const addressContainer = document.getElementById('address-container');
 
             let accessToken = '';
-            let orderId = '';
+            let orderPk = '';
 
-            // --- 2. Authentication Check ---
-            function checkAuth() {
-                accessToken = localStorage.getItem('accessToken');
-                if (!accessToken) {
-                    // Agar login nahi hai, toh auth page par bhejo
-                    window.location.href = "{% url 'web:auth' %}?next=" + window.location.pathname;
-                    return false;
-                }
-                return true;
+            // --- 2. URL se Order PK nikalna ---
+            try {
+                // e.g., /order/123/
+                const pathParts = window.location.pathname.split('/');
+                orderPk = pathParts[pathParts.length - 2];
+            } catch (e) {
+                loader.innerText = "Error: Invalid order URL.";
+                return;
             }
-
-            // --- 3. URL se Order ID nikalna ---
-            function getOrderId() {
-                try {
-                    const pathParts = window.location.pathname.split('/');
-                    const id = pathParts[2]; // [0]="", [1]="order", [2]="<id>"
-                    if (!id || isNaN(id)) {
-                        throw new Error("Invalid ID");
-                    }
-                    return id;
-                } catch (e) {
-                    console.error("ID nahi mil saki:", e);
-                    mainContainer.innerHTML = "<p class='status-message'>Error: Invalid Order URL.</p>";
+            
+            // --- 3. Helper Functions (Auth, CSRF, Refresh) ---
+            // (Ye functions 'cart.html' se copy kiye gaye hain)
+            function getAuthToken() {
+                const token = localStorage.getItem('accessToken');
+                if (!token) {
+                    window.location.href = `{% url 'web:auth' %}?next=${window.location.pathname}`;
                     return null;
                 }
+                return token;
+            }
+
+            async function refreshToken() {
+                const refresh = localStorage.getItem('refreshToken');
+                if (!refresh) return false;
+                try {
+                    const response = await fetch('/api/token/refresh/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ refresh: refresh })
+                    });
+                    if (!response.ok) return false;
+                    const data = await response.json();
+                    localStorage.setItem('accessToken', data.access);
+                    accessToken = data.access;
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            async function fetchAuthenticated(url, options = {}, isRetry = false) {
+                options.headers = {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                    ...options.headers
+                };
+                const response = await fetch(url, options);
+                if (response.status === 401 && !isRetry) {
+                    const refreshed = await refreshToken();
+                    if (refreshed) return fetchAuthenticated(url, options, true);
+                    else {
+                        getAuthToken();
+                        return null;
+                    }
+                }
+                return response;
             }
 
             // --- 4. Main Function: Order Data Fetch Karna ---
-            async function fetchOrderDetails(id) {
+            async function fetchOrderDetails() {
                 try {
-                    const response = await fetch(`/api/orders/${id}/`, {
-                        method: 'GET',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${accessToken}`
-                        }
-                    });
-
+                    const response = await fetchAuthenticated(`/api/orders/${orderPk}/`);
+                    
+                    if (!response) return; // Auth fail
                     if (!response.ok) {
-                        if (response.status === 401) { // Token invalid
-                            handleLogout(); 
-                        }
-                        if (response.status === 404) { // Order not found
-                            throw new Error('Order not found.');
-                        }
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                        throw new Error('Order not found or not accessible.');
                     }
                     
                     const orderData = await response.json();
-                    
-                    // Data milne ke baad, render karein
                     renderOrder(orderData);
+                    
+                    loader.style.display = 'none';
+                    orderContent.style.display = 'block';
 
                 } catch (error) {
-                    console.error("Order fetch karne mein error:", error);
-                    mainContainer.innerHTML = `<p class="status-message">${error.message}</p>`;
-                } finally {
-                    loader.style.display = 'none'; // Loader chupayein
+                    console.error("Order fetch error:", error);
+                    loader.innerText = error.message;
                 }
             }
-            
-            // --- 5. Render Function: Data ko HTML mein badalna ---
+
+            // --- 5. Render Function ---
             function renderOrder(order) {
-                // Header update karein
-                headerTitle.innerText = `Order #${order.id}`;
+                // Header
+                orderTitle.innerText = `Order #${order.id}`;
+                orderIdElement.innerText = `Order #${order.id}`;
+                orderStatusElement.innerText = order.status;
+                orderStatusElement.className = `status-badge status-${order.status.toLowerCase()}`;
+                
+                const orderDate = new Date(order.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+                orderDateElement.innerText = `Placed on ${orderDate}`;
 
-                // Order items HTML
-                const itemsHtml = order.items.map(item => `
-                    <div class="order-item-card">
-                        <img src="${item.product_image}" alt="${item.product_name}" class="item-image">
-                        <div class="item-details">
-                            <h3 class="item-title">${item.product_name}</h3>
-                            <p class="item-variant">${item.variant_name}</p>
-                            <p class="item-quantity">Quantity: ${item.quantity}</p>
+                // Items
+                itemsContainer.innerHTML = '';
+                order.items.forEach(item => {
+                    const itemHtml = `
+                        <div class="order-item-compact">
+                            <span class="item-quantity">${item.quantity} x</span>
+                            <div class="item-details">
+                                <h4>${item.inventory.product.name}</h4>
+                                <p>${item.inventory.variant_name}</p>
+                            </div>
+                            <span class="item-price">₹${item.price}</span>
                         </div>
-                        <div class="item-price">₹${item.price}</div>
-                    </div>
-                `).join('');
+                    `;
+                    itemsContainer.innerHTML += itemHtml;
+                });
 
-                // Address HTML
-                const address = order.delivery_address;
-                const addressHtml = `
-                    <div class="address-details-card">
-                        <h3>${address.address_type}</h3>
-                        <p>${address.full_address}</p>
-                        <p>${address.landmark || ''}</p>
-                        <p>${address.phone}</p>
-                    </div>
-                `;
-
-                // Bill Summary HTML
-                const billHtml = `
+                // Bill
+                billContainer.innerHTML = `
                     <div class="bill-row">
                         <span>Subtotal</span>
-                        <span>₹${order.subtotal_amount}</span>
+                        <span>₹${order.subtotal}</span>
                     </div>
                     <div class="bill-row">
                         <span>Delivery Fee</span>
@@ -160,56 +213,22 @@
                         <span>₹${order.total_amount}</span>
                     </div>
                 `;
-
-                // Poora main content HTML
-                mainContainer.innerHTML = `
-                    <section class="order-status-section">
-                        <div class="status-card">
-                            <div class="status-icon ${order.status.toLowerCase()}">
-                                <i class="fas fa-check-circle"></i> 
-                            </div>
-                            <div class="status-details">
-                                <h3>Order ${order.status}</h3>
-                                <p>Placed on ${new Date(order.created_at).toLocaleString('en-IN')}</p>
-                            </div>
-                        </div>
-                        <a href="#" class="track-order-btn">
-                            <i class="fas fa-map-marker-alt"></i> Track Order
-                        </a>
-                    </section>
-
-                    <section class="order-items-section">
-                        <h2 class="section-title">Items in this order</h2>
-                        ${itemsHtml}
-                    </section>
-
-                    <section class="order-details-section">
-                        <h2 class="section-title">Delivery Address</h2>
-                        ${addressHtml}
-
-                        <h2 class="section-title">Bill Details</h2>
-                        <div class="bill-card">
-                            ${billHtml}
-                        </div>
-                    </section>
+                
+                // Address
+                const addr = order.delivery_address;
+                addressContainer.innerHTML = `
+                    <h4>${addr.address_type}</h4>
+                    <p>${addr.full_address}</p>
+                    <p>${addr.landmark || ''}</p>
+                    <p>${addr.city}, ${addr.pincode}</p>
                 `;
-            }
-            
-            // Helper function (agar token invalid ho)
-            function handleLogout() {
-                localStorage.removeItem('accessToken');
-                localStorage.removeItem('refreshToken');
-                checkAuth(); // Redirect karega
             }
 
             // --- 6. Page Load Par Shuru Karein ---
-            if (checkAuth()) {
-                orderId = getOrderId();
-                if (orderId) {
-                    fetchOrderDetails(orderId);
-                }
+            accessToken = getAuthToken();
+            if (accessToken) {
+                fetchOrderDetails();
             }
-
         });
     </script>
 

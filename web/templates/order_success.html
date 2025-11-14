@@ -5,73 +5,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
-    <link rel="stylesheet" href="{% static 'css/index_style.css' %}"> <link rel="stylesheet" href="{% static 'css/order_success_style.css' %}">
-    
-    <title>QuickDash - Order Placed!</title>
-
-    <style>
-        /* Naye buttons ke liye thoda style */
-        .success-actions {
-            margin-top: 30px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            width: 100%;
-            max-width: 300px;
-        }
-
-        .btn-primary, .btn-secondary {
-            display: block;
-            text-decoration: none;
-            padding: 12px;
-            border-radius: 8px;
-            font-weight: 600;
-            text-align: center;
-        }
-
-        .btn-primary {
-            background-color: var(--primary);
-            color: #fff;
-        }
-
-        .btn-secondary {
-            background-color: var(--light);
-            color: var(--text-dark);
-            border: 1px solid var(--border-color);
-        }
-    </style>
+    <title>Order Successful - QuickDash</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'css/order_success_style.css' %}">
 </head>
 
 <body>
-
-    <main class="success-container">
-
-        <div class="success-icon-wrapper">
-            <i class="fas fa-check-circle"></i>
+    <div class="success-container">
+        <div class="success-card">
+            <div class="icon-wrapper">
+                <i class="fas fa-check"></i>
+            </div>
+            <h1>Order Placed Successfully!</h1>
+            <p>
+                Your order <strong id="order-id">#...</strong> has been placed. You will receive
+                updates via SMS and notifications.
+            </p>
+            
+            <div class="button-group">
+                <a href="{% url 'web:index' %}" class="btn-secondary">
+                    <i class="fas fa-home"></i> Go to Home
+                </a>
+                <a href="#" id="track-order-btn" class="btn-primary">
+                    <i class="fas fa-truck"></i> Track Order
+                </a>
+            </div>
         </div>
+    </div>
 
-        <h1 class="success-title">Order Placed Successfully!</h1>
-        
-        <p class="success-message">
-            Thank you for shopping with QuickDash. Your order is being prepared and will be delivered shortly.
-        </p>
-
-        <div class="success-actions">
-            <a href="{% url 'web:profile' %}" class="btn-secondary">
-                <i class="fas fa-receipt"></i> View Your Orders
-            </a>
-            <a href="{% url 'web:index' %}" class="btn-primary">
-                <i class="fas fa-shopping-bag"></i> Continue Shopping
-            </a>
-        </div>
-
-    </main>
-
+    <script>
+        // NAYA: URL se order ID nikalna
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const orderId = urlParams.get('order_id');
+            
+            if (orderId) {
+                document.getElementById('order-id').innerText = `#${orderId}`;
+                // NAYA: Track Order button ka link set karein
+                // (Hum assume kar rahe hain ki order-detail page hi track page hai)
+                document.getElementById('track-order-btn').href = `/order/${orderId}/`;
+            } else {
+                // Agar ID nahi mila, toh track button chupa dein
+                document.getElementById('track-order-btn').style.display = 'none';
+            }
+        });
+    </script>
 </body>
 
 </html>

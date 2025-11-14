@@ -10,18 +10,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
     <link rel="stylesheet" href="{% static 'css/index_style.css' %}">
     <title>QuickDash - Home</title>
-
-    <style>
-        /* YEH NAYA STYLE ADD KAREIN (Banner image ke liye) */
-        .promo-image-dynamic {
-            width: 80px;
-            height: 80px;
-            object-fit: contain;
-            margin-right: 10px;
-        }
-    </style>
 
 </head>
 
@@ -35,17 +26,17 @@
                 </a>
                 <div class="location">
                     <i class="fas fa-map-marker-alt"></i>
-                    <span>Fastest Delivery • Dharmanagar</span>
+                    <span id="location-display">Detecting location...</span>
                 </div>
             </div>
 
             <div class="header-icons">
-                <a href="{% url 'web:auth' %}" class="icon-link"> <i class="far fa-user"></i>
+                <a href="{% url 'web:profile' %}" class="icon-link"> <i class="far fa-user"></i>
                     <span class="icon-text">Account</span>
                 </a>
                 <a href="{% url 'web:cart' %}" class="icon-link cart-link"> <i class="fas fa-shopping-cart"></i>
                     <span class="icon-text">Cart</span>
-                    <span class="cart-count">0</span> 
+                    <span class="cart-count" id="cart-count">0</span>
                 </a>
             </div>
         </div>
@@ -54,163 +45,220 @@
             <input type="text" name="q" placeholder="Search for items..." value="">
         </form>
 
-        <nav class="header-nav-row">
-            <a href="index.html" class="nav-item active">All</a>
-            <a href="category.html" class="nav-item">Groceries</a>
-            <a href="category.html" class="nav-item">Vegetables</a>
-            <a href="category.html" class="nav-item">Snacks</a>
-            <a href="category.html" class="nav-item">Electronics</a>
-            <a href="category.html" class="nav-item">Personal Care</a>
-            <a href="category.html" class="nav-item">Dairy</a>
-            <a href="category.html" class="nav-item">Meat</a>
-        </nav>
+        <nav class="header-nav-row" id="header-nav-categories">
+            <a href="{% url 'web:index' %}" class="nav-item active">All</a>
+            </nav>
     </header>
 
     <section class="hero-section">
         <div class="scroll-banner" id="banner-container">
-            </div>
+            <p class="status-message"><i class="fas fa-spinner fa-spin"></i></p>
+        </div>
     </section>
 
     <main>
-
         <section>
             <div class="section-title">
                 <h2>Shop By Category</h2>
-                <a href="category.html" class="view-all">View All</a> </div>
+                <a href="{% url 'web:category' %}" class="view-all">View All</a>
+            </div>
             <div class="categories" id="category-container">
-                </div>
+                <p class="status-message"><i class="fas fa-spinner fa-spin"></i></p>
+            </div>
         </section>
 
         <section>
             <div class="section-title">
                 <h2>Featured Products</h2>
-                <a href="#" class="view-all">More</a>
             </div>
             <div class="scroll-container">
                 <div class="product-grid" id="featured-product-grid">
-                    </div>
+                    <p class="status-message"><i class="fas fa-spinner fa-spin"></i></p>
+                </div>
             </div>
         </section>
-
     </main>
     
-    <section class="app-download-banner">
-        </section>
-
-    <section class="trust-badge-section">
-        </section>
-
-        <footer>
+    <footer>
         <div class="container">
             <div class="footer-content">
                 <div class="footer-column">
                     <h3>QuickDash</h3>
-                    <p>Groceries delivered in minutes. Fresh products, best prices, and instant delivery.</p>
-                    <div class="social-icons">
-                        <a href="#"><i class="fab fa-facebook-f"></i></a>
-                        <a href="#"><i class="fab fa-twitter"></i></a>
-                        <a href="#"><i class="fab fa-instagram"></i></a>
-                    </div>
+                    <p>Groceries delivered in minutes.</p>
                 </div>
-                
                 <div class="footer-column">
                     <h3>Quick Links</h3>
                     <ul class="footer-links">
                         <li><a href="#">About Us</a></li>
                         <li><a href="#">Contact Us</a></li>
-                        <li><a href="#">Privacy Policy</a></li>
-                        <li><a href="#">Terms & Conditions</a></li>
-                        <li><a href="#">FAQ</a></li>
+                        <li><a href="{% url 'web:profile' %}">Account</a></li>
                     </ul>
-                </div>
-                
-                <div class="footer-column">
-                    <h3>Categories</h3>
-                    <ul class="footer-links">
-                        <li><a href="#">Fruits & Vegetables</a></li>
-                        <li><a href="#">Dairy & Breakfast</a></li>
-                        <li><a href="#">Munchies</a></li>
-                        <li><a href="#">Cold Drinks & Juices</a></li>
-                        <li><a href="#">Instant & Frozen Food</a></li>
-                    </ul>
-                </div>
-                
-                <div class="footer-column">
-                    <h3>Download App</h3>
-                    <div class="app-download">
-                        <a href="#"><img
-                        src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Google_Play_Store_badge_EN.svg/2560px-Google_Play_Store_badge_EN.svg.png"
-                        alt="Get it on Google Play" style="height: 40px;"></a>
-                    </div>
-                     <div class="app-download">
-                        <a href="#"><img
-                        src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Download_on_the_App_Store_Badge.svg/2560px-Download_on_the_App_Store_Badge.svg.png"
-                        alt="Download on the App Store" style="height: 40px;"></a>
-                    </div>
                 </div>
             </div>
-            
             <div class="copyright">
-                <p>© 2025 QuickDash. All Rights Reserved. Built for demo purposes.</p>
+                <p>© 2025 QuickDash. All Rights Reserved.</p>
             </div>
         </div>
     </footer>
+    
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
 
-            // 1. Search Bar Logic (Aapka purana code, yeh theek hai)
-            const input = document.querySelector('.search-bar-row input');
-            const searchBar = document.querySelector('.search-bar-row');
-            if (input && searchBar) {
-                input.addEventListener('focus', () => {
-                    searchBar.style.backgroundColor = '#fff';
-                });
-                input.addEventListener('blur', () => {
-                    searchBar.style.backgroundColor = 'var(--light)';
-                });
+            // --- 1. Zaroori Elements ---
+            const locationDisplay = document.getElementById('location-display');
+            const bannerContainer = document.getElementById('banner-container');
+            const categoryContainer = document.getElementById('category-container');
+            const productContainer = document.getElementById('featured-product-grid');
+            const navCategoryContainer = document.getElementById('header-nav-categories');
+            const cartCountElement = document.getElementById('cart-count');
+            
+            let accessToken = localStorage.getItem('accessToken'); // Ho sakta hai null ho
+
+            // --- 2. Helper Functions (Auth, CSRF) ---
+            function getCsrfToken() {
+                return document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
             }
 
-            // 2. NAYA: Home Page ka data fetch karne ke liye function
-            async function fetchHomePageData() {
+            // NAYA: Token Refresh Logic (Optional but good)
+            async function refreshToken() {
+                const refresh = localStorage.getItem('refreshToken');
+                if (!refresh) return false;
                 try {
-                    // YEH HAI AAPKA API ENDPOINT
-                    // Hum assume kar rahe hain ki 'store' app Django project mein '/api/store/' par registered hai
-                    const response = await fetch('/api/store/home-data/');
-                    
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                    const response = await fetch('/api/token/refresh/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ refresh: refresh })
+                    });
+                    if (!response.ok) return false;
+                    const data = await response.json();
+                    localStorage.setItem('accessToken', data.access);
+                    accessToken = data.access;
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+            
+            // NAYA: API Fetch (Auth ke saath)
+            async function fetchAuthenticated(url, options = {}, isRetry = false) {
+                options.headers = {
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                };
+                // Sirf agar token hai tabhi Authorization header add karein
+                if (accessToken) {
+                    options.headers['Authorization'] = `Bearer ${accessToken}`;
+                }
+
+                const response = await fetch(url, options);
+
+                if (response.status === 401 && !isRetry && accessToken) {
+                    const refreshed = await refreshToken();
+                    if (refreshed) return fetchAuthenticated(url, options, true); // Retry
+                    else {
+                        // Token refresh fail hua, tokens clear karein
+                        localStorage.removeItem('accessToken');
+                        localStorage.removeItem('refreshToken');
+                        accessToken = null;
+                        return fetchAuthenticated(url, options, true); // Ab bina auth ke retry karein
                     }
+                }
+                return response;
+            }
+
+            // --- 3. Main Logic: Location paane ke baad hi sab fetch karein ---
+            function startApp() {
+                const lat = localStorage.getItem("userLatitude");
+                const lon = localStorage.getItem("userLongitude");
+
+                if (lat && lon) {
+                    // Agar location pehle se hai
+                    locationDisplay.innerText = "Near You"; // Simple text
+                    fetchHomePageData(lat, lon);
+                    fetchCartCount(); // Cart count bhi fetch karein
+                } else {
+                    // Agar location nahi hai, toh user se poochein
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            const { latitude, longitude } = position.coords;
+                            localStorage.setItem("userLatitude", latitude);
+                            localStorage.setItem("userLongitude", longitude);
+                            locationDisplay.innerText = "Near You";
+                            fetchHomePageData(latitude, longitude);
+                            fetchCartCount();
+                        },
+                        (error) => {
+                            // Location DENIED
+                            console.error("Geolocation error:", error);
+                            window.location.href = "{% url 'web:location-denied' %}";
+                        }
+                    );
+                }
+            }
+
+            // --- 4. API Call: Home Page Data ---
+            async function fetchHomePageData(lat, lon) {
+                try {
+                    const response = await fetch(`/api/store/home-data/?lat=${lat}&lon=${lon}`);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     
                     const data = await response.json();
                     
-                    // Data milne ke baad, HTML render functions ko call karein
+                    // NAYA: Store ka naam dikhayein
+                    if (data.store) {
+                        locationDisplay.innerText = `Store: ${data.store.name}`;
+                    }
+                    
                     renderBanners(data.banners);
                     renderCategories(data.categories);
                     renderProducts(data.featured_products);
 
                 } catch (error) {
-                    console.error("Home page data fetch karne mein error:", error);
-                    // User ko error dikhayein
-                    document.getElementById('banner-container').innerHTML = "<p>Banners load nahi ho sake.</p>";
-                    document.getElementById('category-container').innerHTML = "<p>Categories load nahi ho saki.</p>";
-                    document.getElementById('featured-product-grid').innerHTML = "<p>Products load nahi ho sake.</p>";
+                    console.error("Home page data fetch error:", error);
+                    bannerContainer.innerHTML = "<p class='status-message'>Content load nahi ho saka.</p>";
+                    categoryContainer.innerHTML = "<p class='status-message'>Categories load nahi ho saki.</p>";
+                    productContainer.innerHTML = "<p class='status-message'>Products load nahi ho sake.</p>";
                 }
             }
-
-            // 3. NAYA: Banners ko render karne ka function
-            function renderBanners(banners) {
-                const container = document.getElementById('banner-container');
-                container.innerHTML = ''; // Container ko saaf karein
-                
-                if (!banners || banners.length === 0) {
-                    container.innerHTML = "<p>No promotions available right now.</p>";
+            
+            // --- 5. API Call: Cart Count ---
+            async function fetchCartCount() {
+                if (!accessToken) {
+                    cartCountElement.innerText = '0';
                     return;
                 }
+                try {
+                    const response = await fetchAuthenticated('/api/cart/count/');
+                    if (!response.ok) throw new Error('Could not fetch count');
+                    const data = await response.json();
+                    updateCartCount(data.item_count || 0);
+                } catch (error) {
+                    console.warn("Cart count error:", error.message);
+                    cartCountElement.innerText = '0';
+                }
+            }
+            
+            function updateCartCount(count) {
+                 cartCountElement.innerText = count;
+                 if (count > 0) {
+                     cartCountElement.style.display = 'flex';
+                     // (Optional) Animation
+                     cartCountElement.style.transform = 'scale(1.2)';
+                     setTimeout(() => { cartCountElement.style.transform = 'scale(1)'; }, 200);
+                 } else {
+                     cartCountElement.style.display = 'none';
+                 }
+            }
 
+            // --- 6. Render Functions ---
+            function renderBanners(banners) {
+                bannerContainer.innerHTML = '';
+                if (!banners || banners.length === 0) {
+                    bannerContainer.innerHTML = "<p class='status-message'>No promotions available.</p>";
+                    return;
+                }
                 banners.forEach(banner => {
-                    // Data aapke BannerSerializer ke hisaab se (title, image, link)
-                    // Humne icon ki jagah <img> ka istemal kiya hai
                     const bannerHtml = `
                         <a href="${banner.link || '#'}" class="promo-card">
                             <div class="promo-content">
@@ -219,86 +267,74 @@
                             <img src="${banner.image}" alt="${banner.title}" class="promo-image-dynamic">
                         </a>
                     `;
-                    container.innerHTML += bannerHtml;
+                    bannerContainer.innerHTML += bannerHtml;
                 });
             }
 
-            // 4. NAYA: Categories ko render karne ka function
             function renderCategories(categories) {
-                const container = document.getElementById('category-container');
-                container.innerHTML = ''; // Container ko saaf karein
+                categoryContainer.innerHTML = '';
+                navCategoryContainer.innerHTML = '<a href="{% url 'web:index' %}" class="nav-item active">All</a>'; // Reset
 
-                categories.forEach(category => {
-                    // Data aapke CategorySerializer ke hisaab se (name, icon, slug)
-                    // Humne link ko static 'category.html' se dynamic URL mein badal diya hai
+                if (!categories || categories.length === 0) {
+                    categoryContainer.innerHTML = "<p class='status-message'>No categories found.</p>";
+                    return;
+                }
+                
+                categories.slice(0, 7).forEach(category => { // Home page par max 7 dikhayein
+                    // NAYA: Image icon fix
+                    const iconHtml = category.icon
+                        ? `<img src="${category.icon}" alt="${category.name}" class="category-image">`
+                        : `<i class="fas fa-tag"></i>`;
+
                     const categoryHtml = `
                         <a href="/category/${category.slug}/" class="category-card"> 
                             <div class="category-icon">
-                                <i class="${category.icon || 'fas fa-tag'}"></i> 
+                                ${iconHtml}
                             </div>
                             <h3>${category.name}</h3>
                         </a>
                     `;
-                    container.innerHTML += categoryHtml;
+                    categoryContainer.innerHTML += categoryHtml;
+                    
+                    // Header nav bar mein bhi add karein
+                    navCategoryContainer.innerHTML += `
+                         <a href="/category/${category.slug}/" class="nav-item">${category.name}</a>
+                    `;
                 });
             }
 
-            // 5. NAYA: Products ko render karne ka function
             function renderProducts(products) {
-                const container = document.getElementById('featured-product-grid');
-                container.innerHTML = ''; // Container ko saaf karein
-
+                productContainer.innerHTML = '';
                 if (!products || products.length === 0) {
-                    container.innerHTML = "<p>No featured products available.</p>";
+                    productContainer.innerHTML = "<p class='status-message'>No featured products available.</p>";
                     return;
                 }
 
-                /* ZAROORI NOTE: Aapka HomePageDataSerializer 'featured_products' ke liye 
-                'inventory.serializers.StoreInventoryListSerializer' ka istemal karta hai,
-                jo file mujhe nahi di gayi hai.
-                
-                Main ASSUME kar raha hoon ki har product object (item) aisa dikhega:
-                {
-                   "id": (variant ka id),
-                   "product": { "id": (product ka id), "name": "...", "main_image": "..." },
-                   "variant_name": "500ml",
-                   "price": { "price": "28.00", "original_price": "30.00" },
-                   "is_out_of_stock": false
-                }
-                Agar yeh structure alag hai, toh niche diye gaye code ko badalna hoga.
-                */
-
                 products.forEach(item => {
-                    // Upar diye gaye assumption ke aadhar par fields
                     const product = item.product; 
                     const variantName = item.variant_name || '';
                     const price = item.price.price;
                     const originalPrice = item.price.original_price;
                     const discount = (originalPrice && parseFloat(price) < parseFloat(originalPrice));
                     const isOutOfStock = item.is_out_of_stock;
+                    const mainImage = item.image || product.main_image; // NAYA: Variant image check
 
                     let priceHtml = `<div class="price">₹${price}</div>`;
                     if (discount) {
-                        priceHtml = `
-                            <div class="price">
-                                <span class="original-price">₹${originalPrice}</span> ₹${price}
-                            </div>
-                        `;
+                        priceHtml = `<div class="price"><span class="original-price">₹${originalPrice}</span> ₹${price}</div>`;
                     }
 
-                    // Button logic
                     let buttonHtml = `<button class="add-to-cart" data-variant-id="${item.id}"><i class="fas fa-plus"></i></button>`;
                     if (isOutOfStock) {
                         buttonHtml = `<span class="out-of-stock-btn">Out of Stock</span>`;
                     }
 
-                    // Product card HTML
                     const productHtml = `
                         <div class="product-card">
                             <a href="/product/${product.id}/">
                                 <div class="product-image">
                                     ${discount ? '<div class="discount-badge">OFF</div>' : ''}
-                                    <img src="${product.main_image}" alt="${product.name}">
+                                    <img src="${mainImage}" alt="${product.name}">
                                 </div>
                             </a>
                             <div class="product-info">
@@ -311,55 +347,82 @@
                             </div>
                         </div>
                     `;
-                    container.innerHTML += productHtml;
+                    productContainer.innerHTML += productHtml;
                 });
 
-                // Products render hone ke BAAD, naye bane 'add-to-cart' buttons par listener lagayein
                 attachCartButtonListeners();
             }
             
-            // 6. NAYA: Cart buttons par click logic (Aapka purana logic, naye function mein)
+            // --- 7. Cart Button Logic (REAL) ---
             function attachCartButtonListeners() {
-                const allAddButtons = document.querySelectorAll('.add-to-cart');
-                const cartCountElement = document.querySelector('.cart-count');
-
-                allAddButtons.forEach(button => {
-                    // Double listener lagane se bachne ke liye check
-                    if (button.dataset.listenerAttached) return;
-
-                    button.addEventListener('click', (event) => {
-                        event.preventDefault();
-                        
-                        // Variant ID jise cart mein add karna hai
-                        const variantId = event.currentTarget.dataset.variantId;
-                        console.log(`Adding variant ${variantId} to cart...`);
-                        
-                        // !! ABHI KE LIYE: Hum sirf number badha rahe hain.
-                        // Asli implementation mein, aapko yahan 'fetch' ka istemal karke
-                        // cart API (e.g., /api/cart/add/) ko call karna chahiye.
-                        
-                        let currentCartCount = parseInt(cartCountElement.innerText);
-                        currentCartCount++;
-                        cartCountElement.innerText = currentCartCount;
-
-                        // (Optional) Animation
-                        cartCountElement.style.transform = 'scale(1.3)';
-                        setTimeout(() => {
-                            cartCountElement.style.transform = 'scale(1)';
-                        }, 200);
+                document.querySelectorAll('.add-to-cart').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const variantId = e.currentTarget.dataset.variantId;
+                        addToCart(variantId, button);
                     });
-                    
-                    button.dataset.listenerAttached = 'true'; // Mark karein ki listener lag gaya hai
                 });
             }
 
-            // 7. NAYA: Page load par main function ko call karein
-            fetchHomePageData();
-            
-            // Purana cart logic aur swipe logic hata diya gaya hai kyunki
-            // - Cart logic ab dynamic hai (attachCartButtonListeners)
-            // - Banner swipe logic ko abhi ke liye hata diya gaya hai (dynamic banners)
+            async function addToCart(variantId, button, isRetry = false) {
+                if (!accessToken) {
+                    // Agar login nahi hai, toh login page par bhejo
+                    window.location.href = `{% url 'web:auth' %}?next={% url 'web:index' %}`;
+                    return;
+                }
+                
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
+                try {
+                    const response = await fetch('/api/cart/add/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken(),
+                            'Authorization': `Bearer ${accessToken}`
+                        },
+                        body: JSON.stringify({
+                            inventory_id: variantId,
+                            quantity: 1
+                        })
+                    });
+                    
+                    if (response.status === 401 && !isRetry) {
+                        const refreshed = await refreshToken();
+                        if (refreshed) addToCart(variantId, button, true);
+                        else window.location.href = `{% url 'web:auth' %}?next={% url 'web:index' %}`;
+                        return;
+                    }
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.detail || 'Could not add to cart');
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // Success!
+                    button.innerHTML = '<i class="fas fa-check"></i>'; // Success icon
+                    updateCartCount(data.total_items_in_cart); // Naye count se update karein
+                    
+                    setTimeout(() => {
+                        button.disabled = false;
+                        button.innerHTML = '<i class="fas fa-plus"></i>'; // Wapas normal
+                    }, 1000);
+
+                } catch (error) {
+                    console.error("Add to cart error:", error.message);
+                    button.innerHTML = '<i class="fas fa-times"></i>'; // Error icon
+                    setTimeout(() => {
+                        button.disabled = false;
+                        button.innerHTML = '<i class="fas fa-plus"></i>';
+                    }, 1000);
+                }
+            }
+
+            // --- 8. App Shuru Karein ---
+            startApp();
         });
     </script>
 

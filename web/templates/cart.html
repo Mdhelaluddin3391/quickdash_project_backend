@@ -7,20 +7,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    <link rel="stylesheet" href="{% static 'css/index_style.css' %}"> <link rel="stylesheet" href="{% static 'css/cart_style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/index_style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/cart_style.css' %}">
     
     <title>QuickDash - Your Cart</title>
 
     <style>
-        /* Loading/Error indicator ke liye */
         .status-message {
             text-align: center;
             padding: 50px;
             font-size: 1.2rem;
             color: var(--text-muted);
+        }
+        /* NAYA: Button disable style */
+        .quantity-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        /* NAYA: Main container opacity transition */
+        #main-content-container {
+            transition: opacity 0.3s;
         }
     </style>
 </head>
@@ -36,17 +45,11 @@
     </header>
 
     <main id="main-content-container">
-
-        <div class="status-message" id="loading-indicator">
+        <div class.status-message" id="status-message">
             <i class="fas fa-spinner fa-spin"></i> Loading your cart...
         </div>
-
-        <div class="cart-items-container" id="cart-items-container">
-            </div>
-
-        <div class="bill-details-container" id="bill-details-container">
-            </div>
-
+        <div class="cart-items-container" id="cart-items-container"></div>
+        <div class="bill-details-container" id="bill-details-container"></div>
     </main>
 
     <div class="fixed-checkout-bar" id="checkout-bar" style="display: none;">
@@ -67,26 +70,55 @@
             const mainContainer = document.getElementById('main-content-container');
             const itemsContainer = document.getElementById('cart-items-container');
             const billContainer = document.getElementById('bill-details-container');
-            const loader = document.getElementById('loading-indicator');
+            const statusMessage = document.getElementById('status-message');
             const checkoutBar = document.getElementById('checkout-bar');
             const barTotalPrice = document.getElementById('bar-total-price');
 
             let accessToken = '';
 
-            // --- 2. Authentication Check ---
-            function checkAuth() {
-                accessToken = localStorage.getItem('accessToken');
-                if (!accessToken) {
+            // --- 2. Helper Functions ---
+            function getAuthToken() {
+                const token = localStorage.getItem('accessToken');
+                if (!token) {
                     // Agar login nahi hai, toh auth page par bhejo
-                    window.location.href = "{% url 'web:auth' %}?next={% url 'web:cart' %}";
+                    // 'next' parameter add kiya taaki login ke baad wapas cart par aa jaaye
+                    window.location.href = `{% url 'web:auth' %}?next={% url 'web:cart' %}`;
+                    return null;
+                }
+                return token;
+            }
+
+            function getCsrfToken() {
+                return document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+            }
+
+            // NAYA: Token Refresh Logic
+            async function refreshToken() {
+                const refresh = localStorage.getItem('refreshToken');
+                if (!refresh) return false;
+
+                try {
+                    const response = await fetch('/api/token/refresh/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ refresh: refresh })
+                    });
+                    if (!response.ok) return false;
+                    
+                    const data = await response.json();
+                    localStorage.setItem('accessToken', data.access);
+                    accessToken = data.access;
+                    return true;
+                } catch (e) {
                     return false;
                 }
-                return true;
             }
 
             // --- 3. Main Function: Cart Data Fetch Karna ---
-            async function fetchCartData() {
-                loader.style.display = 'block'; // Loader dikhayein
+            async function fetchCartData(isRetry = false) {
+                if (!accessToken) return; // Token nahi toh fetch na karein
+
+                statusMessage.style.display = 'block';
                 itemsContainer.innerHTML = '';
                 billContainer.innerHTML = '';
                 checkoutBar.style.display = 'none';
@@ -100,65 +132,70 @@
                         }
                     });
 
-                    if (!response.ok) {
-                        if (response.status === 401) {
-                            // Token expire ho gaya, wapas login par bhejo
-                            localStorage.removeItem('accessToken');
-                            localStorage.removeItem('refreshToken');
-                            checkAuth(); // Redirect karega
+                    if (response.status === 401 && !isRetry) { // 401 Unauthorized
+                        const refreshed = await refreshToken();
+                        if (refreshed) {
+                            fetchCartData(true); // Retry with new token
+                        } else {
+                            getAuthToken(); // Redirect to login
                         }
+                        return;
+                    }
+
+                    if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
                     
                     const cartData = await response.json();
-                    
-                    // Data milne ke baad, render karein
                     renderCart(cartData);
 
                 } catch (error) {
                     console.error("Cart fetch karne mein error:", error);
-                    mainContainer.innerHTML = '<p class="status-message">Error loading cart. Please try again.</p>';
+                    statusMessage.innerHTML = 'Error loading cart. Please try again.';
                 } finally {
-                    loader.style.display = 'none'; // Loader chupayein
+                    statusMessage.style.display = 'none';
                 }
             }
 
             // --- 4. Render Function: Data ko HTML mein badalna ---
             function renderCart(cartData) {
-                // Agar cart khaali hai
                 if (!cartData.items || cartData.items.length === 0) {
                     mainContainer.innerHTML = `
                         <div class="status-message">
                             <h3>Your cart is empty</h3>
                             <p>Looks like you haven't added anything yet.</p>
-                            <a href="{% url 'web:index' %}" class="btn-primary">Shop Now</a>
+                            <a href="{% url 'web:index' %}" class="checkout-btn" style="text-decoration: none;">Shop Now</a>
                         </div>`;
+                    checkoutBar.style.display = 'none';
                     return;
                 }
 
-                // Kadam 4A: Items render karein
-                itemsContainer.innerHTML = ''; // Saaf karein
+                // 4A: Items
+                itemsContainer.innerHTML = '';
                 cartData.items.forEach(item => {
-                    const product = item.product;
+                    const product = item.inventory.product; // NAYA: Structure 'inventory.product' ho sakta hai
+                    const variantName = item.inventory.variant_name;
+                    const price = item.inventory.price.price;
+                    const mainImage = item.inventory.image || product.main_image; // Variant image ya main image
+
                     const itemHtml = `
                         <div class="cart-item-card">
                             <div class="cart-item-image">
-                                <img src="${product.main_image}" alt="${product.name}">
+                                <img src="${mainImage}" alt="${product.name}">
                             </div>
                             <div class="cart-item-details">
                                 <h3 class="item-title">${product.name}</h3>
-                                <div class="item-weight">${item.variant_name}</div>
-                                <div class="item-price">₹${item.price}</div>
+                                <div class="item-weight">${variantName}</div>
+                                <div class="item-price">₹${price}</div>
                             </div>
                             <div class="cart-item-controls">
-                                <button classs="quantity-btn" 
+                                <button class="quantity-btn" 
                                         data-item-id="${item.id}" 
-                                        data-action="decrease" 
-                                        ${item.quantity <= 1 ? 'disabled' : ''}>
+                                        data-action="decrease">
                                     <i class="fas fa-minus"></i>
                                 </button>
                                 <span class="quantity-text">${item.quantity}</span>
-                                <button classs="quantity-btn" 
+                                <button class="quantity-btn" 
                                         data-item-id="${item.id}" 
                                         data-action="increase">
                                     <i class="fas fa-plus"></i>
@@ -169,7 +206,7 @@
                     itemsContainer.innerHTML += itemHtml;
                 });
 
-                // Kadam 4B: Bill Details render karein
+                // 4B: Bill Details
                 const totals = cartData.totals;
                 billContainer.innerHTML = `
                     <div class="bill-card">
@@ -189,15 +226,15 @@
                     </div>
                 `;
 
-                // Kadam 4C: Fixed checkout bar ko update aur display karein
+                // 4C: Fixed checkout bar
                 barTotalPrice.innerText = `₹${totals.grand_total}`;
                 checkoutBar.style.display = 'flex';
                 
-                // Kadam 4D: Naye bane buttons par listeners lagayein
+                // 4D: Naye buttons par listeners
                 attachButtonListeners();
             }
 
-            // --- 5. Event Listeners: Buttons ko functional banana ---
+            // --- 5. Event Listeners: Buttons ---
             function attachButtonListeners() {
                 itemsContainer.querySelectorAll('.quantity-btn').forEach(button => {
                     button.addEventListener('click', (e) => {
@@ -205,7 +242,6 @@
                         const itemId = target.dataset.itemId;
                         const action = target.dataset.action;
                         
-                        // Current quantity nikalna
                         let quantity = parseInt(target.parentElement.querySelector('.quantity-text').innerText);
                         
                         if (action === 'increase') {
@@ -214,7 +250,6 @@
                             if (quantity > 1) {
                                 updateQuantity(itemId, quantity - 1);
                             } else {
-                                // Agar quantity 1 hai aur minus dabate hain, toh remove karein
                                 removeItem(itemId);
                             }
                         }
@@ -223,8 +258,7 @@
             }
 
             // --- 6. Helper Function: Quantity Update (API Call) ---
-            async function updateQuantity(itemId, newQuantity) {
-                // Disable buttons temporarily
+            async function updateQuantity(itemId, newQuantity, isRetry = false) {
                 mainContainer.style.opacity = '0.5';
 
                 try {
@@ -232,29 +266,35 @@
                         method: 'PUT',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRFToken': '{{ csrf_token }}', // POST/PUT ke liye zaroori
+                            'X-CSRFToken': getCsrfToken(),
                             'Authorization': `Bearer ${accessToken}`
                         },
                         body: JSON.stringify({ quantity: newQuantity })
                     });
                     
+                    if (response.status === 401 && !isRetry) {
+                        const refreshed = await refreshToken();
+                        if (refreshed) updateQuantity(itemId, newQuantity, true);
+                        else getAuthToken();
+                        return;
+                    }
+
                     if (!response.ok) {
                         throw new Error('Failed to update quantity');
                     }
                     
-                    // Update safal hone ke baad, poora cart refresh karein
-                    await fetchCartData();
+                    await fetchCartData(true); // Refresh cart
 
                 } catch (error) {
                     console.error('Update error:', error);
-                    alert('Could not update cart. Please try again.');
+                    alert('Could not update cart.');
                 } finally {
                     mainContainer.style.opacity = '1';
                 }
             }
 
             // --- 7. Helper Function: Remove Item (API Call) ---
-            async function removeItem(itemId) {
+            async function removeItem(itemId, isRetry = false) {
                 mainContainer.style.opacity = '0.5';
                 
                 try {
@@ -262,28 +302,35 @@
                         method: 'DELETE',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRFToken': '{{ csrf_token }}', // DELETE ke liye zaroori
+                            'X-CSRFToken': getCsrfToken(),
                             'Authorization': `Bearer ${accessToken}`
                         }
                     });
                     
+                    if (response.status === 401 && !isRetry) {
+                        const refreshed = await refreshToken();
+                        if (refreshed) removeItem(itemId, true);
+                        else getAuthToken();
+                        return;
+                    }
+
                     if (!response.ok) {
                         throw new Error('Failed to remove item');
                     }
 
-                    // Remove safal hone ke baad, poora cart refresh karein
-                    await fetchCartData();
+                    await fetchCartData(true); // Refresh cart
 
                 } catch (error) {
                     console.error('Remove error:', error);
-                    alert('Could not remove item. Please try again.');
+                    alert('Could not remove item.');
                 } finally {
                     mainContainer.style.opacity = '1';
                 }
             }
 
             // --- 8. Page Load Par Shuru Karein ---
-            if (checkAuth()) {
+            accessToken = getAuthToken();
+            if (accessToken) {
                 fetchCartData();
             }
 

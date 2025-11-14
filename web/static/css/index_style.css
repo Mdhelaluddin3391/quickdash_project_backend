@@ -725,6 +725,97 @@ footer {
 }
 
 
+/* NAYA: Category icon image fix */
+.category-card .category-icon .category-image {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+}
+
+/* NAYA: Banner image fix */
+.promo-image-dynamic {
+    width: 80px;
+    height: 80px;
+    object-fit: contain;
+    margin-right: 10px;
+}
+
+/* NAYA: Status message style */
+.status-message {
+    text-align: center;
+    padding: 20px;
+    font-size: 1rem;
+    color: var(--text-muted);
+    width: 100%;
+}
+
+
+
+
+/* ================================== */
+/* == BOTTOM NAV BAR - NEW DESIGN == */
+/* ================================== */
+
+/* Yeh poore nav bar ka container hai */
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background-color: #ffffff; /* Saaf white background */
+    display: flex;
+    justify-content: space-around; /* Items ko barabar failata hai */
+    align-items: center;
+    
+    /* Subtle shadow (design ke liye) */
+    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.05); 
+    
+    /* Sabse upar dikhe */
+    z-index: 1000; 
+    
+    /* (Optional) iOS devices par safe area ke liye */
+    padding-bottom: env(safe-area-inset-bottom);
+    height: 60px; /* Ek standard height */
+}
+
+/* Har nav item (link) */
+.bottom-nav .nav-item {
+    display: flex;
+    flex-direction: column; /* Icon aur Text ko upar-neeche rakhta hai */
+    align-items: center;   /* Horizontal center */
+    justify-content: center; /* Vertical center */
+    text-decoration: none;
+    color: #999999; /* Default (inactive) color */
+    font-family: 'Poppins', sans-serif;
+    flex-grow: 1; /* Taaki sab items barabar jagah lein */
+    height: 100%;
+    
+    /* Smooth color change */
+    transition: color 0.2s ease; 
+}
+
+/* Har item ka icon */
+.bottom-nav .nav-item i {
+    font-size: 1.4rem; /* Icon ko thoda bada karein */
+    margin-bottom: 4px; /* Icon aur text ke beech gap */
+}
+
+/* Har item ka text */
+.bottom-nav .nav-item span {
+    font-size: 0.7rem; /* Text ko chhota aur clean rakhein */
+    font-weight: 500;
+}
+
+/* Jab item 'active' ho (jaise Home page par Home icon) */
+.bottom-nav .nav-item.active {
+    color: var(--primary-color, #007bff); /* Active color (aapka primary color) */
+    font-weight: 600;
+}
+
+/* (Optional) Jab user click kare (tap effect) */
+.bottom-nav .nav-item:active {
+    background-color: #f4f4f4; /* Halki si highlight */
+}
 /* =================================== */
 /* ====== 4. RESPONSIVE STYLES ====== */
 /* =================================== */

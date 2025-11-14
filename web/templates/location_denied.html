@@ -24,12 +24,11 @@
                 <strong>settings</strong> mein jaakar location permission ko "Allow" karein.
             </p>
 
-            <button class="reload-btn" onclick="window.location.reload()">
+            <button class="reload-btn" onclick="window.location.href = '{% url 'web:index' %}'">
                 <i class="fas fa-redo"></i>
                 Retry Permission
             </button>
         </div>
     </div>
 </body>
-
 </html>

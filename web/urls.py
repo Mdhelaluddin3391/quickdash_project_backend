@@ -16,4 +16,5 @@ urlpatterns = [
     path('order/<int:pk>/', views.OrderDetailView.as_view(), name='order-detail'),
     path('product/<int:pk>/', views.ProductView.as_view(), name='product-detail'),
     path('location-denied/', views.LocationDeniedView.as_view(), name='location-denied'),
+    path('track-order/', views.TrackOrderView.as_view(), name='track-order'),
 ]

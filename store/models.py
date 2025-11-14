@@ -41,12 +41,12 @@ class Category(TimestampedModel):
         db_index=True,
         help_text="URL ke liye unique slug (e.g., 'dairy-breakfast')"
     )
-    icon = models.ImageField(
-        upload_to='category_icons/', 
+    icon = models.CharField(
+        max_length=100, 
         null=True, 
         blank=True,
-        help_text="Category ke liye ek chhota icon"
-    )
+        help_text="Font Awesome class (e.g., 'fas fa-carrot')"
+)
     is_active = models.BooleanField(
         default=True,
         help_text="Kya yeh category site par visible hai?"

@@ -16,6 +16,7 @@
             margin-top: 5px;
             text-align: left;
             width: 100%;
+            white-space: pre-wrap; /* Naya: Taki error message line break ho sake */
         }
     </style>
 </head>
@@ -26,14 +27,10 @@
         <div class="form-container sign-up-container">
             <form id="register-form">
                 <h1>Create Account</h1>
-                <div class="social-container">
-                    <a href="#" class="social"><i class="fab fa-google-plus-g"></i></a>
-                </div>
-                <span>or use your email for registration</span>
                 <input type="text" name="first_name" placeholder="First Name" required />
                 <input type="text" name="last_name" placeholder="Last Name" required />
                 <input type="email" name="email" placeholder="Email" required />
-                <input type="text" name="phone" placeholder="Phone (e.g., +91...)" required />
+                <input type="text" name="phone_number" placeholder="Phone (e.g., +91...)" required />
                 <input type="password" name="password" placeholder="Password" required />
                 <button type="submit">Sign Up</button>
                 <div class="error-message" id="register-error"></div>
@@ -43,11 +40,7 @@
         <div class="form-container sign-in-container">
             <form id="login-form">
                 <h1>Sign in</h1>
-                <div class="social-container">
-                    <a href="#" class="social"><i class="fab fa-google-plus-g"></i></a>
-                </div>
-                <span>or use your account</span>
-                <input type="email" name="email" placeholder="Email" required />
+                <input type="text" name="username" placeholder="Phone or Email" required />
                 <input type="password" name="password" placeholder="Password" required />
                 <a href="#">Forgot your password?</a>
                 <button type="submit">Sign In</button>
@@ -74,26 +67,26 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
 
-            // --- 1. UI Elements (Toggle, Forms, Errors) ---
+            // --- 1. UI Elements ---
             const signUpButton = document.getElementById('signUp');
             const signInButton = document.getElementById('signIn');
             const container = document.getElementById('container');
-
             const loginForm = document.getElementById('login-form');
             const registerForm = document.getElementById('register-form');
-            
             const loginError = document.getElementById('login-error');
             const registerError = document.getElementById('register-error');
 
-            // --- 2. Check agar user pehle se logged-in hai ---
-            // Agar token hai, toh user ko profile par bhej do
+            // --- 2. URL se 'next' parameter nikalna ---
+            const urlParams = new URLSearchParams(window.location.search);
+            // NAYA: Default redirect 'profile' page hai
+            const nextUrl = urlParams.get('next') || "{% url 'web:profile' %}";
+
+            // --- 3. Check agar user pehle se logged-in hai ---
             if (localStorage.getItem('accessToken')) {
-                // Hum profile page par bhej rahe hain (jo abhi humne banaya nahi hai)
-                // Abhi ke liye homepage par bhejte hain
-                window.location.href = "{% url 'web:index' %}"; 
+                window.location.href = nextUrl;
             }
 
-            // --- 3. Toggle Logic (Aapke CSS ke hisab se) ---
+            // --- 4. Toggle Logic ---
             signUpButton.addEventListener('click', () => {
                 container.classList.add("right-panel-active");
                 loginError.innerText = '';
@@ -105,11 +98,17 @@
                 loginError.innerText = '';
                 registerError.innerText = '';
             });
+            
+            // --- 5. Helper: CSRF Token ---
+            function getCsrfToken() {
+                // Django default cookie 'csrftoken' se value nikalna
+                return document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+            }
 
-            // --- 4. Login Form Submission ---
+            // --- 6. Login Form Submission ---
             loginForm.addEventListener('submit', async (e) => {
-                e.preventDefault(); // Page ko reload hone se rokein
-                loginError.innerText = ''; // Purana error saaf karein
+                e.preventDefault();
+                loginError.innerText = '';
                 const button = loginForm.querySelector('button');
                 button.disabled = true;
                 button.innerText = 'Signing In...';
@@ -118,10 +117,12 @@
                 const data = Object.fromEntries(formData.entries());
 
                 try {
+                    // NAYA: /api/token/ (SimpleJWT) endpoint ka istemal
                     const response = await fetch('/api/token/', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken() // CSRF Token
                         },
                         body: JSON.stringify(data),
                     });
@@ -129,19 +130,15 @@
                     const result = await response.json();
 
                     if (!response.ok) {
-                        // Agar 401 (Unauthorized) ya 400 (Bad Request)
-                        loginError.innerText = result.detail || 'Invalid email or password.';
+                        loginError.innerText = result.detail || 'Invalid credentials.';
                     } else {
                         // SUCCESS!
                         localStorage.setItem('accessToken', result.access);
                         localStorage.setItem('refreshToken', result.refresh);
-                        
-                        // User ko homepage par bhej de
-                        window.location.href = "{% url 'web:index' %}";
+                        window.location.href = nextUrl; // 'next' URL par redirect karein
                     }
 
                 } catch (error) {
-                    console.error('Login error:', error);
                     loginError.innerText = 'Something went wrong. Please try again.';
                 } finally {
                     button.disabled = false;
@@ -149,7 +146,7 @@
                 }
             });
 
-            // --- 5. Register Form Submission ---
+            // --- 7. Register Form Submission ---
             registerForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 registerError.innerText = '';
@@ -159,13 +156,15 @@
 
                 const formData = new FormData(registerForm);
                 const data = Object.fromEntries(formData.entries());
+                // NAYA: 'username' ko 'phone_number' se set karein (aapke model ke hisab se)
+                data.username = data.phone_number;
 
                 try {
-                    // Endpoint (accounts/urls.py se)
                     const response = await fetch('/api/accounts/register/', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken() // CSRF Token
                         },
                         body: JSON.stringify(data),
                     });
@@ -173,31 +172,26 @@
                     const result = await response.json();
 
                     if (!response.ok) { // 400 Bad Request
-                        // Django se aaye validation errors ko parse karein
                         let errorMsg = '';
                         for (const key in result) {
-                            errorMsg += `${key}: ${result[key][0]} \n`; // e.g., "email: user with this email already exists."
+                            errorMsg += `${key}: ${result[key][0]} \n`;
                         }
-                        registerError.innerText = errorMsg || 'Registration failed. Please check your details.';
+                        registerError.innerText = errorMsg || 'Registration failed.';
                     } else {
                         // SUCCESS!
-                        // User ko login tab par bhej de
                         container.classList.remove("right-panel-active");
                         loginError.innerText = 'Registration successful! Please sign in.';
                     }
 
                 } catch (error) {
-                    console.error('Registration error:', error);
                     registerError.innerText = 'Something went wrong. Please try again.';
                 } finally {
                     button.disabled = false;
                     button.innerText = 'Sign Up';
                 }
             });
-
         });
     </script>
 
 </body>
-
 </html>

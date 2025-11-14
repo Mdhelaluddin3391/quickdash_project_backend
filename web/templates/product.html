@@ -3,23 +3,22 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    <link rel="stylesheet" href="{% static 'css/index_style.css' %}"> <link rel="stylesheet" href="{% static 'css/product_detail_style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/index_style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/product_detail_style.css' %}">
     
-    <title>QuickDash - Loading...</title>
-
+    <title>QuickDash - Product</title>
     <style>
-        /* Loading indicator ke liye */
-        .loader {
+        .status-message {
             text-align: center;
-            padding: 50px;
-            font-size: 1.5rem;
+            padding: 40px;
+            font-size: 1.2rem;
             color: var(--text-muted);
         }
     </style>
@@ -28,236 +27,270 @@
 <body>
 
     <header class="simple-header">
-        <a href="javascript:history.back()" class="back-button">
+        <a href="#" onclick="window.history.back(); return false;" class="back-button">
             <i class="fas fa-arrow-left"></i>
         </a>
-        <h1 class="header-title" id="product-name-title">Product Details</h1>
+        <h1 class="header-title" id="product-name-title">Product</h1>
         <div class="header-placeholder"></div>
     </header>
 
-    <div id="main-content-container">
-        <div class="loader" id="loading-indicator">
-            <i class="fas fa-spinner fa-spin"></i>
+    <main id="main-content-container">
+        <div class="status-message" id="loading-indicator">
+            <i class="fas fa-spinner fa-spin"></i> Loading product...
         </div>
-    </div>
 
-    <div class="fixed-cart-bar" id="cart-bar" style="display: none;">
-        <div class="price-details">
-            <span class="current-price" id="bar-price">₹0</span>
-            <span class="original-price" id="bar-original-price"></span>
+        <div id="product-content" style="display: none;">
+            <div class="product-image-gallery">
+                <img src="" alt="" id="main-product-image">
+            </div>
+
+            <div class="product-details-container">
+                <h1 class="product-title" id="product-name"></h1>
+                <p class="product-brand" id="product-brand"></p>
+                <div class.product-rating" id="product-rating">
+                    </div>
+
+                <div class="variant-selector">
+                    <h3>Select Variant</h3>
+                    <div class="variant-options" id="variant-options-container">
+                        </div>
+                </div>
+
+                <div class="product-price-section">
+                    <div class="price-box">
+                        <span class="current-price" id="current-price"></span>
+                        <span class="original-price" id="original-price"></span>
+                    </div>
+                    <button class="add-to-cart-btn" id="add-to-cart-btn">
+                        <i class="fas fa-shopping-cart"></i> Add to Cart
+                    </button>
+                </div>
+
+                <div class="product-description">
+                    <h3>Description</h3>
+                    <p id="product-description"></p>
+                </div>
+            </div>
         </div>
-        <button class="add-to-cart-btn" id="add-to-cart-button">
-            <i class="fas fa-plus"></i> Add to Cart
-        </button>
-    </div>
 
+    </main>
 
     <script>
+        // NAYA: Poora JavaScript is page ko dynamic banane ke liye
         document.addEventListener('DOMContentLoaded', () => {
 
-            const mainContainer = document.getElementById('main-content-container');
+            // --- 1. Zaroori Elements ---
             const loader = document.getElementById('loading-indicator');
+            const productContent = document.getElementById('product-content');
             const titleElement = document.getElementById('product-name-title');
             
-            // Cart Bar elements
-            const cartBar = document.getElementById('cart-bar');
-            const barPrice = document.getElementById('bar-price');
-            const barOriginalPrice = document.getElementById('bar-original-price');
-            const addToCartButton = document.getElementById('add-to-cart-button');
+            // Content Elements
+            const mainImage = document.getElementById('main-product-image');
+            const productName = document.getElementById('product-name');
+            const productBrand = document.getElementById('product-brand');
+            const productRating = document.getElementById('product-rating');
+            const variantContainer = document.getElementById('variant-options-container');
+            const currentPriceElem = document.getElementById('current-price');
+            const originalPriceElem = document.getElementById('original-price');
+            const addToCartBtn = document.getElementById('add-to-cart-btn');
+            const productDescription = document.getElementById('product-description');
 
-            let variantId; // Variant ID ko store karne ke liye
-            let productId; // Base Product ID ko store karne ke liye
+            let productPk = '';
+            let productData = null; // Poora product data store karne ke liye
+            let selectedInventoryId = null; // Chuna gaya variant
+            let accessToken = localStorage.getItem('accessToken');
 
-            // 1. URL se Product (Variant) ID nikalna
+            // --- 2. URL se Product PK nikalna ---
             try {
                 const pathParts = window.location.pathname.split('/');
-                variantId = pathParts[2]; // [0]="", [1]="product", [2]="<id>"
-                if (!variantId || isNaN(variantId)) {
-                    throw new Error("Invalid ID");
-                }
+                productPk = pathParts[pathParts.length - 2];
             } catch (e) {
-                console.error("ID nahi mil saki:", e);
-                mainContainer.innerHTML = "<p class='loader'>Error: Invalid Product URL.</p>";
+                loader.innerText = "Error: Invalid product URL.";
                 return;
             }
 
-            // 2. Product data fetch karne ka function
-            async function fetchProductDetails(id) {
+            // --- 3. Helper Functions (Auth, CSRF, Refresh) ---
+            // (Ye functions 'cart.html' se copy kiye gaye hain)
+            function getCsrfToken() {
+                return document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+            }
+            async function refreshToken() {
+                const refresh = localStorage.getItem('refreshToken');
+                if (!refresh) return false;
                 try {
-                    // Kadam A: Product (Variant) ki details fetch karein
-                    const inventoryResponse = await fetch(`/api/inventory/products/${id}/`);
-                    if (!inventoryResponse.ok) {
-                        throw new Error(`Product not found (ID: ${id})`);
+                    const response = await fetch('/api/token/refresh/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ refresh: refresh })
+                    });
+                    if (!response.ok) return false;
+                    const data = await response.json();
+                    localStorage.setItem('accessToken', data.access);
+                    accessToken = data.access;
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            // --- 4. Main Function: Product Data Fetch Karna ---
+            async function fetchProductDetails() {
+                try {
+                    // Location zaroori hai stock check karne ke liye
+                    const lat = localStorage.getItem("userLatitude");
+                    const lon = localStorage.getItem("userLongitude");
+                    if (!lat || !lon) {
+                        window.location.href = "{% url 'web:location-denied' %}";
+                        return;
                     }
-                    const data = await inventoryResponse.json();
+
+                    const response = await fetch(`/api/store/products/${productPk}/?lat=${lat}&lon=${lon}`);
                     
-                    // Product ID (reviews ke liye)
-                    productId = data.product.id; 
-
-                    // Kadam B: Product reviews fetch karein
-                    let reviews = [];
-                    try {
-                        const reviewsResponse = await fetch(`/api/store/products/${productId}/reviews/`);
-                        if (reviewsResponse.ok) {
-                            reviews = await reviewsResponse.json();
-                        }
-                    } catch (e) {
-                        console.warn("Reviews fetch karne mein error:", e);
+                    if (!response.ok) {
+                        throw new Error('Product not found.');
                     }
-
-                    // Kadam C: Sab render karein
-                    renderProduct(data, reviews);
+                    
+                    productData = await response.json();
+                    renderProduct(productData);
+                    
+                    loader.style.display = 'none';
+                    productContent.style.display = 'block';
 
                 } catch (error) {
-                    console.error("Product fetch karne mein error:", error);
-                    mainContainer.innerHTML = `<p class='loader'>${error.message}. Please go back.</p>`;
+                    console.error("Product fetch error:", error);
+                    loader.innerText = error.message;
                 }
             }
 
-            // 3. Product data ko HTML mein render karne ka function
-            function renderProduct(data, reviews) {
-                // Static (hardcoded) HTML ko replace karein
-                
-                const product = data.product;
-                const price = data.price.price;
-                const originalPrice = data.price.original_price;
-                const discount = (originalPrice && parseFloat(price) < parseFloat(originalPrice));
-                const isOutOfStock = data.is_out_of_stock;
+            // --- 5. Render Function ---
+            function renderProduct(data) {
+                // Base Product Info
+                titleElement.innerText = data.name;
+                mainImage.src = data.main_image;
+                mainImage.alt = data.name;
+                productName.innerText = data.name;
+                productBrand.innerText = `By ${data.brand || 'Unknown'}`;
+                productDescription.innerText = data.description || 'No description available.';
 
-                // Page title update karein
-                titleElement.innerText = product.name;
-                document.title = `QuickDash - ${product.name}`;
+                // Rating
+                productRating.innerHTML = '';
+                let rating = Math.round(data.average_rating || 0);
+                for (let i = 1; i <= 5; i++) {
+                    productRating.innerHTML += `<i class="fas fa-star ${i <= rating ? 'filled' : ''}"></i>`;
+                }
+                productRating.innerHTML += `<span>(${data.review_count} reviews)</span>`;
                 
-                // Discount Badge HTML
-                const discountBadgeHtml = discount 
-                    ? `<div class="discount-badge-large">${Math.round(((originalPrice - price) / originalPrice) * 100)}% OFF</div>` 
-                    : '';
-
-                // Price HTML (Product Info Section)
-                let priceHtml = `<div class="price-large">₹${price}</div>`;
-                if (discount) {
-                    priceHtml = `
-                        <div class="price-large">₹${price}
-                            <span class="original-price-large">₹${originalPrice}</span>
+                // Variants
+                variantContainer.innerHTML = '';
+                data.variants.forEach((variant, index) => {
+                    const isChecked = (index === 0) ? 'checked' : '';
+                    const isDisabled = variant.is_out_of_stock ? 'disabled' : '';
+                    
+                    const variantHtml = `
+                        <div class="variant-option ${isDisabled ? 'disabled' : ''}">
+                            <input type="radio" name="variant" id="var-${variant.id}" value="${variant.id}" ${isChecked} ${isDisabled}>
+                            <label for="var-${variant.id}">${variant.variant_name}</label>
                         </div>
                     `;
-                }
-
-                // Variants HTML (Abhi ke liye static, baad mein is
-                // 'data.available_variants' se dynamic bana sakte hain)
-                // Hum assume kar rahe hain ki 'data.variant_name' maujood hai
-                const variantHtml = `
-                    <div class="variant-selector">
-                        <button class="variant-option active">${data.variant_name || 'Standard'}</button>
-                    </div>
-                `;
+                    variantContainer.innerHTML += variantHtml;
+                });
                 
-                // Reviews HTML
-                let reviewsHtml = '';
-                if (reviews && reviews.length > 0) {
-                    reviewsHtml = `
-                        <div class="product-section">
-                            <h3 class="section-title">Reviews (${reviews.length})</h3>
-                            ${reviews.map(review => `
-                                <div class="review-card">
-                                    <div class="review-header">
-                                        <span class="review-author">${review.user.first_name || 'User'}</span>
-                                        <div class="review-rating">
-                                            ${'<i class="fas fa-star"></i>'.repeat(review.rating)}
-                                            ${'<i class="far fa-star"></i>'.repeat(5 - review.rating)}
-                                        </div>
-                                    </div>
-                                    <p class="review-comment">${review.comment}</p>
-                                </div>
-                            `).join('')}
-                        </div>
-                    `;
-                } else {
-                    reviewsHtml = `
-                        <div class="product-section">
-                            <h3 class="section-title">Reviews</h3>
-                            <p>No reviews yet for this product.</p>
-                        </div>
-                    `;
-                }
+                // Pehla variant by default select karein
+                updateSelectedVariant(data.variants[0].id);
 
-                // Poora main content HTML
-                const mainHtml = `
-                    <main>
-                        <section class="product-image-section">
-                            <img src="${product.main_image}" alt="${product.name}">
-                            ${discountBadgeHtml}
-                        </section>
-
-                        <section class="product-info-section">
-                            <h1 class="product-title-large">${product.name}</h1>
-                            <p class="product-brand">${product.brand || 'QuickDash'}</p>
-                            
-                            ${priceHtml}
-
-                            <div class="product-section">
-                                <h3 class="section-title">Variant</h3>
-                                ${variantHtml}
-                            </div>
-                            
-                            <div class="product-section">
-                                <h3 class="section-title">Description</h3>
-                                <p class="product-description">
-                                    ${product.description || 'No description available.'}
-                                </p>
-                            </div>
-
-                            ${reviewsHtml}
-                            
-                        </section>
-                    </main>
-                `;
-
-                // Loader ko hata kar main content daalein
-                mainContainer.innerHTML = mainHtml;
-
-                // Cart Bar ko update aur display karein
-                barPrice.innerText = `₹${price}`;
-                if (discount) {
-                    barOriginalPrice.innerText = `₹${originalPrice}`;
-                    barOriginalPrice.style.display = 'inline';
-                } else {
-                    barOriginalPrice.style.display = 'none';
-                }
-                
-                if (isOutOfStock) {
-                    addToCartButton.innerText = 'Out of Stock';
-                    addToCartButton.disabled = true;
-                } else {
-                    addToCartButton.innerText = 'Add to Cart';
-                    addToCartButton.disabled = false;
-                }
-
-                cartBar.style.display = 'flex';
+                // Variant change par listener lagayein
+                variantContainer.querySelectorAll('input[name="variant"]').forEach(radio => {
+                    radio.addEventListener('change', (e) => {
+                        updateSelectedVariant(e.target.value);
+                    });
+                });
             }
             
-            // 4. "Add to Cart" button par click listener
-            addToCartButton.addEventListener('click', () => {
-                // 'variantId' wahi hai jo humne URL se nikala tha
-                console.log(`Adding variant ${variantId} to cart...`);
-
-                // Yahan Cart API call (fetch POST request) aani chahiye
-                // e.g., fetch('/api/cart/add/', { method: 'POST', ... })
-
-                // Button ka state badalna
-                addToCartButton.innerText = 'Added!';
-                addToCartButton.style.backgroundColor = 'var(--success)';
-                addToCartButton.disabled = true;
+            // --- 6. Variant Change Logic ---
+            function updateSelectedVariant(variantId) {
+                const variant = productData.variants.find(v => v.id == variantId);
+                if (!variant) return;
                 
-                setTimeout(() => {
-                    addToCartButton.innerText = 'Add to Cart';
-                    addToCartButton.style.backgroundColor = 'var(--primary)';
-                    addToCartButton.disabled = false;
-                }, 1500); // 1.5 second baad reset
-            });
+                selectedInventoryId = variant.id; // NAYA: Store inventory ID
+                
+                // Price update karein
+                currentPriceElem.innerText = `₹${variant.price.price}`;
+                if (variant.price.original_price && parseFloat(variant.price.original_price) > parseFloat(variant.price.price)) {
+                    originalPriceElem.innerText = `₹${variant.price.original_price}`;
+                    originalPriceElem.style.display = 'inline';
+                } else {
+                    originalPriceElem.style.display = 'none';
+                }
 
-            // 5. Page load par main function ko call karein
-            fetchProductDetails(variantId);
+                // Image update karein (agar variant ki alag image hai)
+                mainImage.src = variant.image || productData.main_image;
+                
+                // Button status update karein
+                if (variant.is_out_of_stock) {
+                    addToCartBtn.disabled = true;
+                    addToCartBtn.innerText = 'Out of Stock';
+                } else {
+                    addToCartBtn.disabled = false;
+                    addToCartBtn.innerText = 'Add to Cart';
+                }
+            }
+
+            // --- 7. Add to Cart Logic ---
+            async function handleAddToCart(e, isRetry = false) {
+                if (!accessToken) {
+                    window.location.href = `{% url 'web:auth' %}?next=${window.location.pathname}`;
+                    return;
+                }
+                
+                e.target.disabled = true;
+                e.target.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding...';
+
+                try {
+                    const response = await fetch('/api/cart/add/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken(),
+                            'Authorization': `Bearer ${accessToken}`
+                        },
+                        body: JSON.stringify({
+                            inventory_id: selectedInventoryId,
+                            quantity: 1
+                        })
+                    });
+                    
+                    if (response.status === 401 && !isRetry) {
+                        const refreshed = await refreshToken();
+                        if (refreshed) handleAddToCart(e, true); // Retry
+                        else window.location.href = `{% url 'web:auth' %}?next=${window.location.pathname}`;
+                        return;
+                    }
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.detail || 'Could not add to cart');
+                    }
+                    
+                    e.target.innerHTML = '<i class="fas fa-check"></i> Added!';
+                    setTimeout(() => {
+                        e.target.disabled = false;
+                        e.target.innerText = 'Add to Cart';
+                    }, 1500);
+
+                } catch (error) {
+                    console.error("Add to cart error:", error.message);
+                    e.target.innerText = 'Error';
+                    setTimeout(() => {
+                        e.target.disabled = false;
+                        e.target.innerText = 'Add to Cart';
+                    }, 1500);
+                }
+            }
+            
+            addToCartBtn.addEventListener('click', handleAddToCart);
+
+            // --- 8. Page Load Par Shuru Karein ---
+            fetchProductDetails();
         });
     </script>
 

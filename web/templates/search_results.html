@@ -16,7 +16,6 @@
     <title>QuickDash - Search Results</title>
 
     <style>
-        /* Loading/Error indicator ke liye */
         .status-message {
             text-align: center;
             padding: 40px;
@@ -48,8 +47,7 @@
                 <div class="status-message" id="status-message">
                     <i class="fas fa-spinner fa-spin"></i> Searching...
                 </div>
-
-                </div>
+            </div>
         </section>
     </main>
 
@@ -60,62 +58,89 @@
             const statusMessage = document.getElementById('status-message');
             const titleElement = document.getElementById('results-title');
             const searchInputElement = document.getElementById('search-input');
+            
+            let accessToken = localStorage.getItem('accessToken');
 
-            // 1. URL se Search Query (e.g., "milk") nikalna
+            // --- 1. URL se Search Query nikalna ---
             let searchQuery = '';
             try {
-                // URLSearchParams ka istemal karke URL se 'q' parameter nikalenge
                 const urlParams = new URLSearchParams(window.location.search);
                 searchQuery = urlParams.get('q');
             } catch (e) {
-                console.error("Query nahi mil saki:", e);
                 statusMessage.innerText = "Error: Invalid search URL.";
                 return;
             }
 
             if (!searchQuery) {
                 titleElement.innerText = "Search";
-                statusMessage.innerText = "Please type something in the search bar to find products.";
+                statusMessage.innerText = "Please type something to find products.";
                 return;
             }
 
-            // Search query ko input box mein bhi dikhayein
             searchInputElement.value = searchQuery;
             titleElement.innerText = `Results for "${searchQuery}"`;
+            
+            // --- 2. Helper Functions (Auth, CSRF, Refresh) ---
+            // (Ye functions 'index.html' se copy kiye gaye hain)
+            function getCsrfToken() {
+                return document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+            }
+            async function refreshToken() {
+                const refresh = localStorage.getItem('refreshToken');
+                if (!refresh) return false;
+                try {
+                    const response = await fetch('/api/token/refresh/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ refresh: refresh })
+                    });
+                    if (!response.ok) return false;
+                    const data = await response.json();
+                    localStorage.setItem('accessToken', data.access);
+                    accessToken = data.access;
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
 
-            // 2. Products fetch karne ka function
+
+            // --- 3. Products fetch karne ka function ---
             async function fetchSearchProducts(query) {
                 try {
-                    // Hum 'inventory' app ke product list endpoint ka istemal karenge
-                    // aur 'search' parameter ka istemal karenge.
-                    // Yeh aapke 'inventory/views.py' ke 'search_fields' se match karega
-                    const response = await fetch(`/api/inventory/products/?search=${encodeURIComponent(query)}`);
+                    // Location data (latitude/longitude) zaroori hai
+                    const lat = localStorage.getItem("userLatitude");
+                    const lon = localStorage.getItem("userLongitude");
+                    if (!lat || !lon) {
+                        window.location.href = "{% url 'web:location-denied' %}";
+                        return;
+                    }
+
+                    // NAYA: API call search query aur location ke saath
+                    const response = await fetch(`/api/inventory/products/?search=${encodeURIComponent(query)}&lat=${lat}&lon=${lon}`);
                     
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
                     
                     const products = await response.json();
-                    
-                    // Data milne ke baad, render function ko call karein
                     renderProducts(products);
 
                 } catch (error) {
-                    console.error("Products fetch karne mein error:", error);
+                    console.error("Products fetch error:", error);
                     statusMessage.innerText = "Products load nahi ho sake. Please try again.";
                 }
             }
 
-            // 3. Products ko HTML mein render karne ka function
+            // --- 4. Products ko HTML mein render karna ---
             function renderProducts(products) {
-                productContainer.innerHTML = ''; // Loader/Status ko hatayein
+                productContainer.innerHTML = ''; // Loader hatayein
 
                 if (!products || products.length === 0) {
                     productContainer.innerHTML = `<p class='status-message'>No products found matching "${searchQuery}".</p>`;
                     return;
                 }
 
-                // Loop karke products render karein (yeh code category_detail.html jaisa hai)
                 products.forEach(item => {
                     const product = item.product; 
                     const variantName = item.variant_name || '';
@@ -123,14 +148,11 @@
                     const originalPrice = item.price.original_price;
                     const discount = (originalPrice && parseFloat(price) < parseFloat(originalPrice));
                     const isOutOfStock = item.is_out_of_stock;
+                    const mainImage = item.image || product.main_image;
 
                     let priceHtml = `<div class="price">₹${price}</div>`;
                     if (discount) {
-                        priceHtml = `
-                            <div class="price">
-                                <span class="original-price">₹${originalPrice}</span> ₹${price}
-                            </div>
-                        `;
+                        priceHtml = `<div class="price"><span class="original-price">₹${originalPrice}</span> ₹${price}</div>`;
                     }
 
                     let buttonHtml = `<button class="add-to-cart" data-variant-id="${item.id}"><i class="fas fa-plus"></i></button>`;
@@ -143,7 +165,7 @@
                             <a href="/product/${product.id}/">
                                 <div class="product-image">
                                     ${discount ? '<div class="discount-badge">OFF</div>' : ''}
-                                    <img src="${product.main_image}" alt="${product.name}">
+                                    <img src="${mainImage}" alt="${product.name}">
                                 </div>
                             </a>
                             <div class="product-info">
@@ -159,26 +181,64 @@
                     productContainer.innerHTML += productHtml;
                 });
 
-                // Naye bane 'add-to-cart' buttons par listener lagayein
                 attachCartButtonListeners();
             }
 
-            // 4. Cart buttons par logic
+            // --- 5. NAYA: Cart Button Logic (index.html se copy kiya) ---
             function attachCartButtonListeners() {
-                // (Yeh code pehle jaisa hi hai, abhi ke liye sirf console log karega)
-                const allAddButtons = document.querySelectorAll('.add-to-cart');
-                allAddButtons.forEach(button => {
-                    if (button.dataset.listenerAttached) return;
-                    button.addEventListener('click', (event) => {
-                        event.preventDefault();
-                        const variantId = event.currentTarget.dataset.variantId;
-                        console.log(`Adding variant ${variantId} to cart...`);
+                document.querySelectorAll('.add-to-cart').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const variantId = e.currentTarget.dataset.variantId;
+                        addToCart(variantId, button);
                     });
-                    button.dataset.listenerAttached = 'true';
                 });
             }
 
-            // 5. Page load par main function ko call karein
+            async function addToCart(variantId, button, isRetry = false) {
+                if (!accessToken) {
+                    window.location.href = `{% url 'web:auth' %}?next=${window.location.pathname}${window.location.search}`;
+                    return;
+                }
+                
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+                try {
+                    const response = await fetch('/api/cart/add/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken(),
+                            'Authorization': `Bearer ${accessToken}`
+                        },
+                        body: JSON.stringify({ inventory_id: variantId, quantity: 1 })
+                    });
+                    
+                    if (response.status === 401 && !isRetry) {
+                        const refreshed = await refreshToken();
+                        if (refreshed) addToCart(variantId, button, true);
+                        else window.location.href = `{% url 'web:auth' %}?next=${window.location.pathname}${window.location.search}`;
+                        return;
+                    }
+                    if (!response.ok) throw new Error('Could not add to cart');
+                    
+                    button.innerHTML = '<i class="fas fa-check"></i>';
+                    setTimeout(() => {
+                        button.disabled = false;
+                        button.innerHTML = '<i class="fas fa-plus"></i>';
+                    }, 1000);
+
+                } catch (error) {
+                    button.innerHTML = '<i class="fas fa-times"></i>';
+                    setTimeout(() => {
+                        button.disabled = false;
+                        button.innerHTML = '<i class="fas fa-plus"></i>';
+                    }, 1000);
+                }
+            }
+
+            // --- 6. Page load par main function ko call karein ---
             fetchSearchProducts(searchQuery);
         });
     </script>

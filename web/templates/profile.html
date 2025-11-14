@@ -7,21 +7,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    <link rel="stylesheet" href="{% static 'css/index_style.css' %}"> <link rel="stylesheet" href="{% static 'css/profile_style.css' %}">
-    <link rel="stylesheet" href="{% static 'css/profile_additions.css' %}"> <title>QuickDash - My Account</title>
+    <link rel="stylesheet" href="{% static 'css/index_style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/profile_style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/profile_additions.css' %}">
+    <title>QuickDash - My Account</title>
 
     <style>
-        /* Loading/Error indicator ke liye */
         .status-message {
             text-align: center;
             padding: 40px;
             font-size: 1.2rem;
             color: var(--text-muted);
         }
-        /* Naya: Logout button ke liye style */
         .logout-btn {
             color: #ff4d4d;
             background-color: #ffdada;
@@ -60,11 +60,11 @@
         </div>
 
         <div class="profile-links-grid" id="profile-links" style="display: none;">
-            <a href="#" class="link-card">
-                <i class="fas fa-wallet icon"></i>
-                <span>Payments</span>
+            <a href="{% url 'web:track-order' %}" class="link-card">
+                <i class="fas fa-truck icon"></i>
+                <span>Track Order</span>
             </a>
-            <a href="{% url 'web:support' %}" class="link-card">
+            <a href="#" class="link-card">
                 <i class="fas fa-headset icon"></i>
                 <span>Support</span>
             </a>
@@ -77,13 +77,15 @@
         <section class="profile-section" id="orders-section" style="display: none;">
             <h3 class="section-title">Your Orders</h3>
             <div class="order-list" id="order-list-container">
-                </div>
+                <p>Loading orders...</p>
+            </div>
         </section>
 
         <section class="profile-section" id="address-section" style="display: none;">
             <h3 class="section-title">Manage Addresses</h3>
             <div class="address-list" id="address-list-container">
-                </div>
+                <p>Loading addresses...</p>
+            </div>
             <a href="#" class="add-new-address-btn">+ Add New Address</a>
         </section>
 
@@ -92,6 +94,29 @@
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </section>
+        
+        <div class="bottom-nav">
+            <a href="{% url 'web:index' %}" class="nav-item">
+                <i class="fas fa-home"></i>
+                <span>Home</span>
+            </a>
+            <a href="{% url 'web:category' %}" class="nav-item">
+                <i class="fas fa-th-large"></i>
+                <span>Categories</span>
+            </a>
+            <a href="{% url 'web:search' %}" class="nav-item">
+                <i class="fas fa-search"></i>
+                <span>Search</span>
+            </a>
+            <a href="{% url 'web:cart' %}" class="nav-item">
+                <i class="fas fa-shopping-cart"></i>
+                <span>Cart</span>
+            </a>
+            <a href="{% url 'web:profile' %}" class="nav-item active">
+                <i class="fas fa-user"></i>
+                <span>Account</span>
+            </a>
+        </div>
 
     </main>
 
@@ -102,15 +127,12 @@
             // --- 1. Zaroori Elements ---
             const mainContainer = document.getElementById('main-content-container');
             const loader = document.getElementById('loading-indicator');
-            
-            // Dynamic content containers
             const userName = document.getElementById('user-name');
             const userEmail = document.getElementById('user-email');
             const orderListContainer = document.getElementById('order-list-container');
             const addressListContainer = document.getElementById('address-list-container');
             const logoutBtn = document.getElementById('logout-btn');
-
-            // Sections
+            
             const linksSection = document.getElementById('profile-links');
             const ordersSection = document.getElementById('orders-section');
             const addressSection = document.getElementById('address-section');
@@ -118,52 +140,81 @@
 
             let accessToken = '';
 
-            // --- 2. Authentication Check ---
-            function checkAuth() {
-                accessToken = localStorage.getItem('accessToken');
-                if (!accessToken) {
-                    // Agar login nahi hai, toh auth page par bhejo
-                    window.location.href = "{% url 'web:auth' %}?next={% url 'web:profile' %}";
-                    return false;
+            // --- 2. Helper Functions (Auth, Refresh) ---
+            function getAuthToken() {
+                const token = localStorage.getItem('accessToken');
+                if (!token) {
+                    window.location.href = `{% url 'web:auth' %}?next={% url 'web:profile' %}`;
+                    return null;
                 }
-                return true;
+                return token;
             }
 
-            // --- 3. Helper Functions: API Calls ---
-            
-            // Function to fetch User Profile
-            async function fetchProfile() {
-                const response = await fetch('/api/accounts/profile/', {
-                    headers: { 'Authorization': `Bearer ${accessToken}` }
-                });
-                if (!response.ok) throw new Error('Could not fetch profile.');
-                return response.json();
+            async function refreshToken() {
+                const refresh = localStorage.getItem('refreshToken');
+                if (!refresh) return false;
+                try {
+                    const response = await fetch('/api/token/refresh/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ refresh: refresh })
+                    });
+                    if (!response.ok) return false;
+                    const data = await response.json();
+                    localStorage.setItem('accessToken', data.access);
+                    accessToken = data.access;
+                    return true;
+                } catch (e) {
+                    return false;
+                }
             }
-            
-            // Function to fetch Orders
+
+            async function fetchAuthenticated(url, options = {}, isRetry = false) {
+                options.headers = {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                    ...options.headers
+                };
+                const response = await fetch(url, options);
+                if (response.status === 401 && !isRetry) {
+                    const refreshed = await refreshToken();
+                    if (refreshed) return fetchAuthenticated(url, options, true);
+                    else {
+                        getAuthToken(); // Redirect
+                        return null;
+                    }
+                }
+                return response;
+            }
+
+            // --- 3. API Call Functions ---
+            async function fetchProfile() {
+                return fetchAuthenticated('/api/accounts/profile/');
+            }
             async function fetchOrders() {
-                const response = await fetch('/api/orders/', {
-                    headers: { 'Authorization': `Bearer ${accessToken}` }
-                });
-                if (!response.ok) throw new Error('Could not fetch orders.');
-                return response.json();
+                return fetchAuthenticated('/api/orders/');
             }
 
             // --- 4. Main Function: Page Load Data ---
             async function loadProfileData() {
                 try {
-                    // Dono APIs ko ek saath call karein
-                    const [profileData, ordersData] = await Promise.all([
+                    const [profileResponse, ordersResponse] = await Promise.all([
                         fetchProfile(),
                         fetchOrders()
                     ]);
                     
-                    // Dono data milne ke baad render karein
+                    if (!profileResponse || !ordersResponse) return; // Auth fail
+
+                    if (!profileResponse.ok) throw new Error('Could not fetch profile.');
+                    if (!ordersResponse.ok) throw new Error('Could not fetch orders.');
+
+                    const profileData = await profileResponse.json();
+                    const ordersData = await ordersResponse.json();
+                    
                     renderProfileHeader(profileData);
                     renderAddresses(profileData.addresses);
                     renderOrders(ordersData);
                     
-                    // Loader chupayein aur sections dikhayein
                     loader.style.display = 'none';
                     linksSection.style.display = 'grid';
                     ordersSection.style.display = 'block';
@@ -171,25 +222,19 @@
                     logoutSection.style.display = 'block';
 
                 } catch (error) {
-                    console.error("Profile data load karne mein error:", error);
+                    console.error("Profile data load error:", error);
                     mainContainer.innerHTML = `<p class="status-message">${error.message} Please try again.</p>`;
-                    if (error.message.includes('401')) { // Token invalid
-                        handleLogout();
-                    }
                 }
             }
 
             // --- 5. Render Functions ---
-            
-            // Function to render Profile Header
             function renderProfileHeader(profile) {
-                userName.innerText = `${profile.first_name || ''} ${profile.last_name || ''}`;
-                userEmail.innerText = profile.email || 'No email';
+                userName.innerText = `${profile.first_name || ''} ${profile.last_name || 'User'}`;
+                userEmail.innerText = profile.email || profile.phone_number || '...';
             }
 
-            // Function to render Addresses
             function renderAddresses(addresses) {
-                addressListContainer.innerHTML = ''; // Saaf karein
+                addressListContainer.innerHTML = '';
                 if (!addresses || addresses.length === 0) {
                     addressListContainer.innerHTML = '<p>No saved addresses.</p>';
                     return;
@@ -197,7 +242,7 @@
                 addresses.forEach(address => {
                     const addressHtml = `
                         <div class="address-card-compact">
-                            <i class="fas ${address.address_type === 'Home' ? 'fa-home' : 'fa-briefcase'}"></i>
+                            <i class="fas ${address.address_type === 'HOME' ? 'fa-home' : 'fa-briefcase'}"></i>
                             <div class="address-details">
                                 <h3>${address.address_type}</h3>
                                 <p>${address.full_address}</p>
@@ -209,17 +254,15 @@
                 });
             }
             
-            // Function to render Orders
             function renderOrders(orders) {
-                orderListContainer.innerHTML = ''; // Saaf karein
+                orderListContainer.innerHTML = '';
                 if (!orders || orders.length === 0) {
                     orderListContainer.innerHTML = '<p>You have no past orders.</p>';
                     return;
                 }
-                orders.forEach(order => {
-                    // Order date ko format karein (simple)
+                // Naye orders pehle dikhayein
+                orders.reverse().forEach(order => {
                     const orderDate = new Date(order.created_at).toLocaleDateString('en-IN');
-                    
                     const orderHtml = `
                         <a href="/order/${order.id}/" class="order-card-compact">
                             <div class="order-details">
@@ -227,34 +270,31 @@
                                 <p>Placed on ${orderDate} • ₹${order.total_amount}</p>
                             </div>
                             <div class="order-status-compact">
-                                <span>${order.status}</span>
+                                <span class="status-${order.status.toLowerCase()}">${order.status}</span>
                                 <i class="fas fa-chevron-right"></i>
                             </div>
                         </a>
                     `;
-                    // Naye order ko list mein sabse upar add karein
-                    orderListContainer.insertAdjacentHTML('afterbegin', orderHtml);
+                    orderListContainer.innerHTML += orderHtml;
                 });
             }
 
-            // --- 6. Functionality: Logout ---
+            // --- 6. Logout Logic ---
             function handleLogout() {
-                // Tokens ko clear karein
                 localStorage.removeItem('accessToken');
                 localStorage.removeItem('refreshToken');
-                
-                // User ko homepage par bhej de
+                localStorage.removeItem('userLatitude');
+                localStorage.removeItem('userLongitude');
                 window.location.href = "{% url 'web:index' %}";
             }
             
-            // --- 7. Event Listeners ---
             logoutBtn.addEventListener('click', handleLogout);
 
-            // --- 8. Page Load Par Shuru Karein ---
-            if (checkAuth()) {
+            // --- 7. Page Load Par Shuru Karein ---
+            accessToken = getAuthToken();
+            if (accessToken) {
                 loadProfileData();
             }
-
         });
     </script>
 
