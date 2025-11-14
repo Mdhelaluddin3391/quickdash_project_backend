@@ -34,3 +34,18 @@ class SearchResultsView(TemplateView):
 
 class OrderSuccessView(TemplateView):
     template_name = "order_success.html"
+
+
+# ... (Baaqi views jaise IndexView, CartView, etc. ke baad)
+
+class OrderDetailView(TemplateView):
+    # Note: Ise dynamic data ke liye baad mein badalna hoga
+    template_name = "order_detail.html"
+
+class TrackOrderView(TemplateView):
+    template_name = "track_order.html"
+
+# ... (Baaqi views jaise TrackOrderView ke baad)
+
+class LocationDeniedView(TemplateView):
+    template_name = "location_denied.html"

@@ -3,382 +3,191 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Category Page - QuickDash</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="{% static 'css/index_style.css' %}"> 
     <link rel="stylesheet" href="{% static 'css/category_detail.css' %}">
+    
+    <title>QuickDash</title>
+
+    <style>
+        /* Loading indicator ke liye */
+        .loader {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.2rem;
+            color: var(--text-muted);
+        }
+    </style>
 </head>
 
 <body>
 
-    <header class="site-header">
-        <div class="container header-container">
-            <a href="index.html" class="logo">QuickDash</a>
-            <nav>
-                <a href="cart.html" class="cart-link">
-                    <i class="fas fa-shopping-cart"></i>
-                    Cart
-                    <span class="cart-count">2</span>
-                </a>
-            </nav>
-        </div>
+    <header class="simple-header">
+        <a href="{% url 'web:category' %}" class="back-button">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <h1 class="header-title" id="category-name-title">Loading...</h1>
+        <div class="header-placeholder"></div>
     </header>
 
-    <div class="container main-content-container">
-
-        <aside class="sidebar">
-            <ul class="sidebar-nav">
-                <li class="active">
-                    <a href="#">
-                        <img src="https://images.unsplash.com/photo-1542838132-92c53300491e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=100&q=80"
-                            alt="Dairy & Eggs">
-                        Dairy & Eggs
-                    </a>
-                </li>
-                <li>
-                    <a href="#">
-                        <img src="https://images.unsplash.com/photo-1566385101042-1a0aa0c1268c?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=100&q=80"
-                            alt="Fruits">
-                        Fruits
-                    </a>
-                </li>
-                <li>
-                    <a href="#">
-                        <img src="https://images.unsplash.com/photo-1540420773420-3366772f4999?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=100&q=80"
-                            alt="Vegetables">
-                        Vegetables
-                    </a>
-                </li>
-                <li>
-                    <a href="#">
-                        <img src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=100&q=80"
-                            alt="Bakery">
-                        Bakery
-                    </a>
-                </li>
-                <li>
-                    <a href="#">
-                        <img src="https://images.unsplash.com/photo-1586201375761-83865001e31c?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=100&q=80"
-                            alt="Beverages">
-                        Beverages
-                    </a>
-                </li>
-                <li>
-                    <a href="#">
-                        <img src="https://images.unsplash.com/photo-1578911372569-2e9d7885e8e3?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=100&q=80"
-                            alt="Snacks">
-                        Snacks
-                    </a>
-                </li>
-            </ul>
-        </aside>
-
-        <main class="product-grid-container">
-
-            <div class="category-header">
-                <h1 class="category-title">Dairy & Eggs</h1>
-                <div class="product-count">12 products</div>
-            </div>
-
-            <div class="sort-filter-container">
-                <select class="sort-select">
-                    <option>Sort by: Popularity</option>
-                    <option>Price: Low to High</option>
-                    <option>Price: High to Low</option>
-                    <option>Newest First</option>
-                </select>
-                <button class="filter-btn">
-                    <i class="fas fa-filter"></i>
-                    Filter
-                </button>
-            </div>
-
-            <div class="product-grid">
-
-                <div class="product-card">
-                    <div class="product-badges">
-                        <span class="product-discount">15% OFF</span>
-                        <span class="product-new">NEW</span>
-                    </div>
-                    <div class="product-image-container">
-                        <a href="product.html">
-                            <img src="https://images.unsplash.com/photo-1550583724-b2692b85b150?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=500&q=80"
-                                alt="Fresh Milk">
-                        </a>
-                        <div class="product-time">
-                            <i class="fas fa-bolt"></i> 10 MINS
-                        </div>
-                    </div>
-                    <a href="product.html">
-                        <h3 class="product-name">Fresh Milk 500ml</h3>
-                    </a>
-                    <p class="product-quantity">Pasteurized • Amul Taaza</p>
-                    <div class="product-footer">
-                        <div class="product-price">
-                            <span class="current-price">₹102</span>
-                            <span class="old-price">₹120</span>
-                        </div>
-                        <div class="quantity-control">
-                            <button class="quantity-btn">-</button>
-                            <span class="quantity-value">1</span>
-                            <button class="quantity-btn">+</button>
-                        </div>
-                    </div>
+    <main>
+        <section class="product-list-section">
+            <div class="product-grid" id="product-grid-container">
+                <div class="loader" id="loading-indicator">
+                    <i class="fas fa-spinner fa-spin"></i> Loading products...
                 </div>
 
-                <div class="product-card">
-                    <div class="product-image-container">
-                        <a href="product.html">
-                            <img src="https://images.unsplash.com/photo-1587049633312-d628ae50a8ae?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=500&q=80"
-                                alt="Eggs">
-                        </a>
-                        <div class="product-time">
-                            <i class="fas fa-bolt"></i> 15 MINS
-                        </div>
-                    </div>
-                    <a href="product.html">
-                        <h3 class="product-name">Farm Fresh Eggs (Dozen)</h3>
-                    </a>
-                    <p class="product-quantity">Brown Eggs • Rich in protein</p>
-                    <div class="product-footer">
-                        <div class="product-price">
-                            <span class="current-price">₹80</span>
-                        </div>
-                        <button class="add-btn">
-                            <i class="fas fa-plus"></i> ADD
-                        </button>
-                    </div>
                 </div>
+        </section>
+    </main>
 
-                <div class="product-card">
-                    <div class="product-badges">
-                        <span class="product-discount">10% OFF</span>
-                    </div>
-                    <div class="product-image-container">
-                        <a href="product.html">
-                            <img src="https://images.unsplash.com/photo-1566772940196-0d2e3fa6bd09?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=500&q=80"
-                                alt="Butter">
-                        </a>
-                        <div class="product-time">
-                            <i class="fas fa-bolt"></i> 12 MINS
-                        </div>
-                    </div>
-                    <a href="product.html">
-                        <h3 class="product-name">Salted Butter 500g</h3>
-                    </a>
-                    <p class="product-quantity">Amul • Creamy & rich</p>
-                    <div class="product-footer">
-                        <div class="product-price">
-                            <span class="current-price">₹245</span>
-                            <span class="old-price">₹270</span>
-                        </div>
-                        <button class="add-btn">
-                            <i class="fas fa-plus"></i> ADD
-                        </button>
-                    </div>
-                </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
 
-                <div class="product-card">
-                    <div class="product-image-container">
-                        <a href="product.html">
-                            <img src="https://images.unsplash.com/photo-1566772940196-0d2e3fa6bd09?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=500&q=80"
-                                alt="Yogurt">
-                        </a>
-                        <div class="product-time">
-                            <i class="fas fa-bolt"></i> 18 MINS
-                        </div>
-                    </div>
-                    <a href="product.html">
-                        <h3 class="product-name">Greek Yogurt 200g</h3>
-                    </a>
-                    <p class="product-quantity">High protein • Epigamia</p>
-                    <div class="product-footer">
-                        <div class="product-price">
-                            <span class="current-price">₹90</span>
-                        </div>
-                        <span class="out-of-stock-btn">Out of Stock</span>
-                    </div>
-                </div>
+            const productContainer = document.getElementById('product-grid-container');
+            const loader = document.getElementById('loading-indicator');
+            const titleElement = document.getElementById('category-name-title');
 
-                <div class="product-card">
-                    <div class="product-badges">
-                        <span class="product-new">NEW</span>
-                    </div>
-                    <div class="product-image-container">
-                        <a href="product.html">
-                            <img src="https://images.unsplash.com/photo-1552767057-3e0dfb6508c4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=500&q=80"
-                                alt="Cheese">
-                        </a>
-                        <div class="product-time">
-                            <i class="fas fa-bolt"></i> 20 MINS
-                        </div>
-                    </div>
-                    <a href="product.html">
-                        <h3 class="product-name">Mozzarella Cheese 200g</h3>
-                    </a>
-                    <p class="product-quantity">Perfect for pizza • Britannia</p>
-                    <div class="product-footer">
-                        <div class="product-price">
-                            <span class="current-price">₹180</span>
-                        </div>
-                        <button class="add-btn">
-                            <i class="fas fa-plus"></i> ADD
-                        </button>
-                    </div>
-                </div>
-
-                <div class="product-card">
-                    <div class="product-badges">
-                        <span class="product-discount">5% OFF</span>
-                    </div>
-                    <div class="product-image-container">
-                        <a href="product.html">
-                            <img src="https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=500&q=80"
-                                alt="Paneer">
-                        </a>
-                        <div class="product-time">
-                            <i class="fas fa-bolt"></i> 15 MINS
-                        </div>
-                    </div>
-                    <a href="product.html">
-                        <h3 class="product-name">Fresh Paneer 500g</h3>
-                    </a>
-                    <p class="product-quantity">Homemade style • Amul</p>
-                    <div class="product-footer">
-                        <div class="product-price">
-                            <span class="current-price">₹190</span>
-                            <span class="old-price">₹200</span>
-                        </div>
-                        <button class="add-btn">
-                            <i class="fas fa-plus"></i> ADD
-                        </button>
-                    </div>
-                </div>
-
-            </div>
-        </main>
-
-    </div>
-
-    <script src="script.js">
-        document.addEventListener('DOMContentLoaded', function () {
-            // Cart count update functionality
-            const cartCount = document.querySelector('.cart-count');
-            const addButtons = document.querySelectorAll('.add-btn');
-            const quantityControls = document.querySelectorAll('.quantity-control');
-
-            // Calculate initial items from existing quantity controls
-            let initialItems = 0;
-            document.querySelectorAll('.quantity-value').forEach(item => {
-                initialItems += parseInt(item.textContent);
-            });
-
-            let cartItems = initialItems; // Set initial cart count
-
-            // Update cart count display
-            function updateCartCount() {
-                cartCount.textContent = cartItems;
-                cartCount.style.display = cartItems > 0 ? 'inline-block' : 'none';
+            // 1. URL se Category Slug (e.g., "fruits-veg") nikalna
+            let categorySlug = '';
+            try {
+                // URL path hoga "/category/fruits-veg/"
+                // Hum split karke 'fruits-veg' nikalenge
+                const pathParts = window.location.pathname.split('/');
+                categorySlug = pathParts[2]; // [0]="", [1]="category", [2]="fruits-veg"
+            } catch (e) {
+                console.error("Slug nahi mil saka:", e);
+                loader.innerText = "Error: Invalid category URL.";
+                return;
             }
 
-            // Function to add quantity control logic to a button set
-            function addQuantityLogic(controlElement, isNew = false, originalAddButton = null) {
-                const minusBtn = controlElement.querySelector('.quantity-btn:first-child');
-                const plusBtn = controlElement.querySelector('.quantity-btn:last-child');
-                const quantityValue = controlElement.querySelector('.quantity-value');
+            if (!categorySlug) {
+                loader.innerText = "Error: Category not found.";
+                return;
+            }
 
-                minusBtn.addEventListener('click', function () {
-                    let quantity = parseInt(quantityValue.textContent);
-                    if (quantity > 1) {
-                        quantityValue.textContent = quantity - 1;
-                        cartItems--;
-                        updateCartCount();
-                    } else if (isNew) {
-                        // If quantity is 1 and it's a new control, remove it and show ADD button
-                        controlElement.remove();
-                        if (originalAddButton) {
-                            originalAddButton.style.display = 'flex';
-                        }
-                        cartItems--;
-                        updateCartCount();
+            // 2. Products fetch karne ka function
+            async function fetchCategoryProducts(slug) {
+                try {
+                    // Hum 'inventory' app ke product list endpoint ka istemal karenge
+                    // aur use category slug se filter karenge.
+                    // Yeh API aapke 'inventory/urls.py' aur 'inventory/views.py' se aata hai.
+                    const response = await fetch(`/api/inventory/products/?category__slug=${slug}`);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
                     }
-                    // If it's not new (was 1 on page load), just decrease cart count
-                    else if (quantity === 1) {
-                        // You might want to remove it here too
-                        // For now, just decrementing cart count to 0 if it was 1
-                        cartItems--;
-                        updateCartCount();
-                        // Optionally hide this and show ADD button
-                        controlElement.style.display = 'none';
-                        // Find the corresponding add button in the footer and show it
-                        const addButton = controlElement.closest('.product-footer').querySelector('.add-btn');
-                        if (addButton) addButton.style.display = 'flex';
+                    
+                    const products = await response.json();
+                    
+                    // Data milne ke baad, render function ko call karein
+                    renderProducts(products);
+
+                } catch (error) {
+                    console.error("Products fetch karne mein error:", error);
+                    loader.innerText = "Products load nahi ho sake. Please try again.";
+                }
+            }
+
+            // 3. Products ko HTML mein render karne ka function
+            function renderProducts(products) {
+                productContainer.innerHTML = ''; // Loader ko hatayein
+
+                if (!products || products.length === 0) {
+                    productContainer.innerHTML = "<p class='loader'>No products found in this category.</p>";
+                    // Title ko bhi update karein (slug se)
+                    titleElement.innerText = categorySlug.replace(/-/g, ' '); // 'fruits-veg' -> 'fruits veg'
+                    return;
+                }
+
+                // Title ko pehle product ki category se set karein (behtar tareeka)
+                // Assumption: Sabhi products ki category same hogi
+                titleElement.innerText = products[0].product.category.name;
+                document.title = `QuickDash - ${products[0].product.category.name}`;
+
+                // Loop karke products render karein (yeh code index.html jaisa hai)
+                products.forEach(item => {
+                    const product = item.product; 
+                    const variantName = item.variant_name || '';
+                    const price = item.price.price;
+                    const originalPrice = item.price.original_price;
+                    const discount = (originalPrice && parseFloat(price) < parseFloat(originalPrice));
+                    const isOutOfStock = item.is_out_of_stock;
+
+                    let priceHtml = `<div class="price">₹${price}</div>`;
+                    if (discount) {
+                        priceHtml = `
+                            <div class="price">
+                                <span class="original-price">₹${originalPrice}</span> ₹${price}
+                            </div>
+                        `;
                     }
+
+                    let buttonHtml = `<button class="add-to-cart" data-variant-id="${item.id}"><i class="fas fa-plus"></i></button>`;
+                    if (isOutOfStock) {
+                        buttonHtml = `<span class="out-of-stock-btn">Out of Stock</span>`;
+                    }
+
+                    const productHtml = `
+                        <div class="product-card">
+                            <a href="/product/${product.id}/">
+                                <div class="product-image">
+                                    ${discount ? '<div class="discount-badge">OFF</div>' : ''}
+                                    <img src="${product.main_image}" alt="${product.name}">
+                                </div>
+                            </a>
+                            <div class="product-info">
+                                <h3 class="product-title">${product.name}</h3>
+                                <div class="product-weight">${variantName}</div>
+                                <div class="product-price">
+                                    ${priceHtml}
+                                    ${buttonHtml}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    productContainer.innerHTML += productHtml;
                 });
 
-                plusBtn.addEventListener('click', function () {
-                    let quantity = parseInt(quantityValue.textContent);
-                    quantityValue.textContent = quantity + 1;
-                    cartItems++;
-                    updateCartCount();
+                // Naye bane 'add-to-cart' buttons par listener lagayein
+                attachCartButtonListeners();
+            }
+
+            // 4. Cart buttons par logic (index.html se copy kiya gaya)
+            function attachCartButtonListeners() {
+                const allAddButtons = document.querySelectorAll('.add-to-cart');
+                const cartCountElement = document.querySelector('.cart-count'); // Yeh page par nahi hai
+
+                allAddButtons.forEach(button => {
+                    if (button.dataset.listenerAttached) return;
+
+                    button.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        const variantId = event.currentTarget.dataset.variantId;
+                        console.log(`Adding variant ${variantId} to cart...`);
+                        
+                        // Yahan Cart API call aani chahiye
+                        // Abhi ke liye, hum cart icon update nahi kar rahe hain kyunki woh is page par nahi hai
+                        
+                        // Sirf button ka state badal dete hain (example)
+                        event.currentTarget.innerHTML = '<i class="fas fa-check"></i>';
+                        event.currentTarget.disabled = true;
+                    });
+                    
+                    button.dataset.listenerAttached = 'true';
                 });
             }
 
-            // Handle "ADD" to cart buttons
-            addButtons.forEach(button => {
-                button.addEventListener('click', function () {
-                    const productCard = this.closest('.product-card');
-
-                    // Replace ADD button with quantity control
-                    this.style.display = 'none';
-                    const quantityControl = document.createElement('div');
-                    quantityControl.className = 'quantity-control';
-                    quantityControl.innerHTML = `
-                <button class="quantity-btn">-</button>
-                <span class="quantity-value">1</span>
-                <button class="quantity-btn">+</button>
-            `;
-                    productCard.querySelector('.product-footer').appendChild(quantityControl);
-
-                    // Add event listeners to new quantity buttons
-                    addQuantityLogic(quantityControl, true, this);
-
-                    // Update cart count
-                    cartItems++;
-                    updateCartCount();
-
-                    // Add visual feedback
-                    productCard.style.boxShadow = '0 8px 25px rgba(0, 169, 79, 0.2)';
-                    setTimeout(() => {
-                        productCard.style.boxShadow = '';
-                    }, 500);
-                });
-            });
-
-            // Handle existing quantity controls
-            quantityControls.forEach(control => {
-                addQuantityLogic(control, false);
-            });
-
-            // Initialize cart count on load
-            updateCartCount();
-
-            // Sidebar category selection
-            const sidebarItems = document.querySelectorAll('.sidebar-nav li');
-            sidebarItems.forEach(item => {
-                item.addEventListener('click', function () {
-                    sidebarItems.forEach(i => i.classList.remove('active'));
-                    this.classList.add('active');
-
-                    // In a real app, you would also load the products for the new category
-                    // For example: loadCategory(this.textContent.trim());
-                });
-            });
+            // 5. Page load par main function ko call karein
+            fetchCategoryProducts(categorySlug);
         });
     </script>
 
 </body>
-
 </html>

@@ -5,166 +5,290 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Your Cart - QuickDash</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="{% static 'css/index_style.css' %}"> <link rel="stylesheet" href="{% static 'css/cart_style.css' %}">
+    
+    <title>QuickDash - Your Cart</title>
 
-    <link rel="stylesheet" href="{% static 'css/cart_style.css' %}">
+    <style>
+        /* Loading/Error indicator ke liye */
+        .status-message {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2rem;
+            color: var(--text-muted);
+        }
+    </style>
 </head>
 
 <body>
 
-    <header class="site-header">
-        <div class="container header-container">
-            <a href="index.html" class="back-link">
-                <i class="fas fa-arrow-left"></i>
-                Continue Shopping
-            </a>
-            <div class="logo">QuickDash</div>
-        </div>
+    <header class="simple-header">
+        <a href="{% url 'web:index' %}" class="back-button">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <h1 class="header-title">My Cart</h1>
+        <div class="header-placeholder"></div>
     </header>
 
-    <main class="container">
+    <main id="main-content-container">
 
-        <h1>Your Cart</h1>
-
-        <div class="cart-layout">
-
-            <div class="cart-items-list">
-                <div class="cart-header">
-                    <h2 class="cart-title">Items in your cart</h2>
-                    <span class="item-count">2 items</span>
-                </div>
-
-                <div class="cart-item">
-                    <img src="https://images.unsplash.com/photo-1550583724-b2692b85b150?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=500&q=80"
-                        alt="Milk" class="item-image">
-                    <div class="item-details">
-                        <h3 class="item-name">Fresh Milk 500ml</h3>
-                        <p class="item-quantity-desc">Amul Taaza • Pasteurized</p>
-                        <p class="item-price-per-unit">₹28 per unit</p>
-                    </div>
-                    <div class="item-controls">
-                        <div class="item-quantity-control">
-                            <button class="quantity-btn" aria-label="Decrease quantity">-</button>
-                            <span class="quantity-value">1</span>
-                            <button class="quantity-btn" aria-label="Increase quantity">+</button>
-                        </div>
-                        <div class="item-total-price">₹28</div>
-                        <button class="remove-item">
-                            <i class="fas fa-trash"></i> Remove
-                        </button>
-                    </div>
-                </div>
-
-                <div class="cart-item">
-                    <img src="https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=500&q=80"
-                        alt="Banana" class="item-image">
-                    <div class="item-details">
-                        <h3 class="item-name">Banana (Dozen)</h3>
-                        <p class="item-quantity-desc">Rich in potassium • Fresh</p>
-                        <p class="item-price-per-unit">₹50 per dozen</p>
-                    </div>
-                    <div class="item-controls">
-                        <div class="item-quantity-control">
-                            <button class="quantity-btn" aria-label="Decrease quantity">-</button>
-                            <span class="quantity-value">2</span>
-                            <button class="quantity-btn" aria-label="Increase quantity">+</button>
-                        </div>
-                        <div class="item-total-price">₹100</div>
-                        <button class="remove-item">
-                            <i class="fas fa-trash"></i> Remove
-                        </button>
-                    </div>
-                </div>
-
-                <div class="empty-cart-message">
-                    <img src="https://cdn-icons-png.flaticon.com/512/11329/11329060.png" alt="Empty Cart">
-                    <h3>Your cart is empty!</h3>
-                    <p>Looks like you haven't added anything to your cart yet. Explore our products and find something
-                        you like.</p>
-                    <a href="index.html" class="start-shopping-btn">
-                        <i class="fas fa-shopping-bag"></i> Start Shopping
-                    </a>
-                </div>
-
-            </div>
-
-            <div class="order-summary-container">
-                <h2>Order Summary</h2>
-
-                <div class="savings-badge">
-                    <i class="fas fa-tag"></i>
-                    <span>You're saving ₹10 on this order!</span>
-                </div>
-
-                <div class="summary-row">
-                    <span>Subtotal (2 items)</span>
-                    <span id="summary-subtotal">₹128.00</span>
-                </div>
-
-                <div class="summary-row">
-                    <span>Delivery Fee</span>
-                    <span id="summary-delivery">₹20.00</span>
-                </div>
-
-                <div class="summary-row">
-                    <span>Handling Fee</span>
-                    <span id="summary-handling">₹5.00</span>
-                </div>
-
-                <div class="summary-divider"></div>
-
-                <div class="summary-row total">
-                    <span>Total</span>
-                    <span id="summary-total">₹153.00</span>
-                </div>
-
-                <a href="checkout.html" class="checkout-button">
-                    <i class="fas fa-lock"></i> Proceed to Checkout
-                </a>
-
-                <div class="summary-row"
-                    style="font-size: 0.8rem; color: var(--text-lighter); margin-top: 12px; text-align: center;">
-                    <i class="fas fa-shield-alt"></i> Secure checkout · 100% protected
-                </div>
-            </div>
+        <div class="status-message" id="loading-indicator">
+            <i class="fas fa-spinner fa-spin"></i> Loading your cart...
         </div>
 
-        <div class="continue-shopping">
-            <h3>Looking for more?</h3>
-            <p>Add more items to your cart from these categories</p>
-            <div class="category-grid">
-                <a href="index.html#fruits" class="category-item">
-                    <div class="category-icon">
-                        <i class="fas fa-apple-alt"></i>
-                    </div>
-                    <span class="category-name">Fruits</span>
-                </a>
-                <a href="index.html#vegetables" class="category-item">
-                    <div class="category-icon">
-                        <i class="fas fa-carrot"></i>
-                    </div>
-                    <span class="category-name">Vegetables</span>
-                </a>
-                <a href="index.html#dairy" class="category-item">
-                    <div class="category-icon">
-                        <i class="fas fa-cheese"></i>
-                    </div>
-                    <span class="category-name">Dairy</span>
-                </a>
-                <a href="index.html#beverages" class="category-item">
-                    <div class="category-icon">
-                        <i class="fas fa-wine-bottle"></i>
-                    </div>
-                    <span class="category-name">Beverages</span>
-                </a>
+        <div class="cart-items-container" id="cart-items-container">
             </div>
-        </div>
+
+        <div class="bill-details-container" id="bill-details-container">
+            </div>
 
     </main>
 
-    <script src="script.js"></script>
+    <div class="fixed-checkout-bar" id="checkout-bar" style="display: none;">
+        <div class="price-details">
+            <span class="total-text">Total</span>
+            <span class="total-price" id="bar-total-price">₹0</span>
+        </div>
+        <a href="{% url 'web:checkout' %}" class="checkout-btn">
+            Proceed to Checkout
+        </a>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- 1. Zaroori Elements ---
+            const mainContainer = document.getElementById('main-content-container');
+            const itemsContainer = document.getElementById('cart-items-container');
+            const billContainer = document.getElementById('bill-details-container');
+            const loader = document.getElementById('loading-indicator');
+            const checkoutBar = document.getElementById('checkout-bar');
+            const barTotalPrice = document.getElementById('bar-total-price');
+
+            let accessToken = '';
+
+            // --- 2. Authentication Check ---
+            function checkAuth() {
+                accessToken = localStorage.getItem('accessToken');
+                if (!accessToken) {
+                    // Agar login nahi hai, toh auth page par bhejo
+                    window.location.href = "{% url 'web:auth' %}?next={% url 'web:cart' %}";
+                    return false;
+                }
+                return true;
+            }
+
+            // --- 3. Main Function: Cart Data Fetch Karna ---
+            async function fetchCartData() {
+                loader.style.display = 'block'; // Loader dikhayein
+                itemsContainer.innerHTML = '';
+                billContainer.innerHTML = '';
+                checkoutBar.style.display = 'none';
+
+                try {
+                    const response = await fetch('/api/cart/', {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${accessToken}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        if (response.status === 401) {
+                            // Token expire ho gaya, wapas login par bhejo
+                            localStorage.removeItem('accessToken');
+                            localStorage.removeItem('refreshToken');
+                            checkAuth(); // Redirect karega
+                        }
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const cartData = await response.json();
+                    
+                    // Data milne ke baad, render karein
+                    renderCart(cartData);
+
+                } catch (error) {
+                    console.error("Cart fetch karne mein error:", error);
+                    mainContainer.innerHTML = '<p class="status-message">Error loading cart. Please try again.</p>';
+                } finally {
+                    loader.style.display = 'none'; // Loader chupayein
+                }
+            }
+
+            // --- 4. Render Function: Data ko HTML mein badalna ---
+            function renderCart(cartData) {
+                // Agar cart khaali hai
+                if (!cartData.items || cartData.items.length === 0) {
+                    mainContainer.innerHTML = `
+                        <div class="status-message">
+                            <h3>Your cart is empty</h3>
+                            <p>Looks like you haven't added anything yet.</p>
+                            <a href="{% url 'web:index' %}" class="btn-primary">Shop Now</a>
+                        </div>`;
+                    return;
+                }
+
+                // Kadam 4A: Items render karein
+                itemsContainer.innerHTML = ''; // Saaf karein
+                cartData.items.forEach(item => {
+                    const product = item.product;
+                    const itemHtml = `
+                        <div class="cart-item-card">
+                            <div class="cart-item-image">
+                                <img src="${product.main_image}" alt="${product.name}">
+                            </div>
+                            <div class="cart-item-details">
+                                <h3 class="item-title">${product.name}</h3>
+                                <div class="item-weight">${item.variant_name}</div>
+                                <div class="item-price">₹${item.price}</div>
+                            </div>
+                            <div class="cart-item-controls">
+                                <button classs="quantity-btn" 
+                                        data-item-id="${item.id}" 
+                                        data-action="decrease" 
+                                        ${item.quantity <= 1 ? 'disabled' : ''}>
+                                    <i class="fas fa-minus"></i>
+                                </button>
+                                <span class="quantity-text">${item.quantity}</span>
+                                <button classs="quantity-btn" 
+                                        data-item-id="${item.id}" 
+                                        data-action="increase">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    itemsContainer.innerHTML += itemHtml;
+                });
+
+                // Kadam 4B: Bill Details render karein
+                const totals = cartData.totals;
+                billContainer.innerHTML = `
+                    <div class="bill-card">
+                        <h3 class="bill-title">Bill Details</h3>
+                        <div class="bill-row">
+                            <span>Subtotal</span>
+                            <span id="subtotal">₹${totals.subtotal}</span>
+                        </div>
+                        <div class="bill-row">
+                            <span>Delivery Fee</span>
+                            <span id="delivery-fee">₹${totals.delivery_fee}</span>
+                        </div>
+                        <div class="bill-row total-row">
+                            <span>Grand Total</span>
+                            <span id="grand-total">₹${totals.grand_total}</span>
+                        </div>
+                    </div>
+                `;
+
+                // Kadam 4C: Fixed checkout bar ko update aur display karein
+                barTotalPrice.innerText = `₹${totals.grand_total}`;
+                checkoutBar.style.display = 'flex';
+                
+                // Kadam 4D: Naye bane buttons par listeners lagayein
+                attachButtonListeners();
+            }
+
+            // --- 5. Event Listeners: Buttons ko functional banana ---
+            function attachButtonListeners() {
+                itemsContainer.querySelectorAll('.quantity-btn').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        const target = e.currentTarget;
+                        const itemId = target.dataset.itemId;
+                        const action = target.dataset.action;
+                        
+                        // Current quantity nikalna
+                        let quantity = parseInt(target.parentElement.querySelector('.quantity-text').innerText);
+                        
+                        if (action === 'increase') {
+                            updateQuantity(itemId, quantity + 1);
+                        } else if (action === 'decrease') {
+                            if (quantity > 1) {
+                                updateQuantity(itemId, quantity - 1);
+                            } else {
+                                // Agar quantity 1 hai aur minus dabate hain, toh remove karein
+                                removeItem(itemId);
+                            }
+                        }
+                    });
+                });
+            }
+
+            // --- 6. Helper Function: Quantity Update (API Call) ---
+            async function updateQuantity(itemId, newQuantity) {
+                // Disable buttons temporarily
+                mainContainer.style.opacity = '0.5';
+
+                try {
+                    const response = await fetch(`/api/cart/item/${itemId}/update/`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}', // POST/PUT ke liye zaroori
+                            'Authorization': `Bearer ${accessToken}`
+                        },
+                        body: JSON.stringify({ quantity: newQuantity })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to update quantity');
+                    }
+                    
+                    // Update safal hone ke baad, poora cart refresh karein
+                    await fetchCartData();
+
+                } catch (error) {
+                    console.error('Update error:', error);
+                    alert('Could not update cart. Please try again.');
+                } finally {
+                    mainContainer.style.opacity = '1';
+                }
+            }
+
+            // --- 7. Helper Function: Remove Item (API Call) ---
+            async function removeItem(itemId) {
+                mainContainer.style.opacity = '0.5';
+                
+                try {
+                    const response = await fetch(`/api/cart/item/${itemId}/remove/`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}', // DELETE ke liye zaroori
+                            'Authorization': `Bearer ${accessToken}`
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to remove item');
+                    }
+
+                    // Remove safal hone ke baad, poora cart refresh karein
+                    await fetchCartData();
+
+                } catch (error) {
+                    console.error('Remove error:', error);
+                    alert('Could not remove item. Please try again.');
+                } finally {
+                    mainContainer.style.opacity = '1';
+                }
+            }
+
+            // --- 8. Page Load Par Shuru Karein ---
+            if (checkAuth()) {
+                fetchCartData();
+            }
+
+        });
+    </script>
 
 </body>
-
 </html>

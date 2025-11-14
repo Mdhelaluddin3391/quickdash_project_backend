@@ -5,223 +5,305 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Checkout - QuickDash</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic" com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="{% static 'css/index_style.css' %}">
     <link rel="stylesheet" href="{% static 'css/checkout_style.css' %}">
+    
+    <title>QuickDash - Checkout</title>
+
+    <style>
+        /* Loading/Error indicator ke liye */
+        .status-message {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.2rem;
+            color: var(--text-muted);
+        }
+        /* Error message style */
+        .error-message {
+            color: #ff4d4d;
+            background-color: #ffdada;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+    </style>
 </head>
 
 <body>
 
-    <header class="site-header">
-        <div class="container header-container">
-            <a href="cart.html" class="back-link">
-                <i class="fas fa-arrow-left"></i>
-                Back to Cart
-            </a>
-            <div class="logo">Checkout</div>
-        </div>
+    <header class="simple-header">
+        <a href="{% url 'web:cart' %}" class="back-button">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <h1 class="header-title">Checkout</h1>
+        <div class="header-placeholder"></div>
     </header>
 
-    <main class="container">
-        <div class="checkout-layout">
+    <main id="main-content-container">
 
-            <div class="checkout-details">
-
-                <section class="checkout-section">
-                    <h2 class="section-title">Delivery Address</h2>
-
-                    <div class="address-card selected">
-                        <div class="address-radio">
-                            <input type="radio" id="addr1" name="delivery_address" checked>
-                            <label for="addr1"></label>
-                        </div>
-                        <div class="address-details">
-                            <span class="address-tag">Home</span>
-                            <p class="address-name">Rohan Sharma</p>
-                            <p class="address-full">123, Sunrise Apartments, Opp. City Mall, Dharmanagar - 799250</p>
-                            <p class="address-phone">Phone: +91 9876543210</p>
-                        </div>
-                        <a href="#" class="edit-btn">Edit</a>
-                    </div>
-
-                    <div class="address-card">
-                        <div class="address-radio">
-                            <input type="radio" id="addr2" name="delivery_address">
-                            <label for="addr2"></label>
-                        </div>
-                        <div class="address-details">
-                            <span class="address-tag">Work</span>
-                            <p class="address-name">Rohan Sharma</p>
-                            <p class="address-full">QuickDash Office, Tech Park, Agartala - 799001</p>
-                            <p class="address-phone">Phone: +91 9876543210</p>
-                        </div>
-                        <a href="#" class="edit-btn">Edit</a>
-                    </div>
-
-                    <button class="add-new-address-btn">
-                        <i class="fas fa-plus"></i>
-                        Add New Address
-                    </button>
-                </section>
-
-                <section class="checkout-section">
-                    <h2 class="section-title">Payment Method</h2>
-
-                    <div class="payment-option selected">
-                        <input type="radio" id="payment_cod" name="payment_method" checked>
-                        <label for="payment_cod">
-                            <i class="fas fa-money-bill-wave"></i>
-                            <span>
-                                <strong>Cash on Delivery (COD)</strong>
-                                <small>Pay at your doorstep</small>
-                            </span>
-                        </label>
-                    </div>
-
-                    <div class="payment-option">
-                        <input type="radio" id="payment_upi" name="payment_method">
-                        <label for="payment_upi">
-                            <i class="fab fa-google-pay"></i>
-                            <span>
-                                <strong>UPI / Wallets</strong>
-                                <small>PhonePe, Google Pay, Paytm</small>
-                            </span>
-                        </label>
-                    </div>
-
-                    <div class="payment-option">
-                        <input type="radio" id="payment_card" name="payment_method">
-                        <label for="payment_card">
-                            <i class="fas fa-credit-card"></i>
-                            <span>
-                                <strong>Credit / Debit Card</strong>
-                                <small>Visa, Mastercard, RuPay</small>
-                            </span>
-                        </label>
-                    </div>
-
-                    <div class="payment-option">
-                        <input type="radio" id="payment_netbanking" name="payment_method">
-                        <label for="payment_netbanking">
-                            <i class="fas fa-university"></i>
-                            <span>
-                                <strong>Net Banking</strong>
-                                <small>All major banks supported</small>
-                            </span>
-                        </label>
-                    </div>
-
-                </section>
-
-            </div>
-
-            <div class="order-summary-container">
-                <h2>Order Summary</h2>
-
-                <div class="savings-badge">
-                    <i class="fas fa-tag"></i>
-                    <span>You're saving ₹10 on this order!</span>
-                </div>
-
-                <div class="summary-items-list">
-                    <div class="summary-item">
-                        <span class="item-name">Fresh Milk 500ml (x1)</span>
-                        <span class="item-price">₹28.00</span>
-                    </div>
-                    <div class="summary-item">
-                        <span class="item-name">Banana (Dozen) (x2)</span>
-                        <span class="item-price">₹100.00</span>
-                    </div>
-                    <div class="summary-item">
-                        <span class="item-name">Greek Yogurt 200g (x1)</span>
-                        <span class="item-price">₹90.00</span>
-                    </div>
-                </div>
-
-                <div class="summary-divider"></div>
-
-                <div class="summary-row">
-                    <span>Subtotal (4 items)</span>
-                    <span id="summary-subtotal">₹218.00</span>
-                </div>
-
-                <div class="summary-row">
-                    <span>Delivery Fee</span>
-                    <span id="summary-delivery" class="text-green">FREE</span>
-                </div>
-
-                <div class="summary-row">
-                    <span>Handling Fee</span>
-                    <span id="summary-handling">₹5.00</span>
-                </div>
-
-                <div class="summary-divider"></div>
-
-                <div class="summary-row total">
-                    <span>To Pay</span>
-                    <span id="summary-total">₹223.00</span>
-                </div>
-
-                <a href="order_success.html" class="place-order-button">
-                    <i class="fas fa-lock"></i> Place Order
-                </a>
-
-                <div class="security-note">
-                    <i class="fas fa-shield-alt"></i> Secure checkout · 100% protected
-                </div>
-            </div>
+        <div class="status-message" id="loading-indicator">
+            <i class="fas fa-spinner fa-spin"></i> Loading checkout details...
         </div>
+
+        <form id="checkout-form" style="display: none;">
+
+            <div id="error-message-container"></div>
+
+            <section class="checkout-section">
+                <h2 class="section-title">Delivery Address</h2>
+                <div class="address-list" id="address-list-container">
+                    </div>
+                <a href="#" class="add-new-address-btn">+ Add New Address</a>
+            </section>
+
+            <section class="checkout-section">
+                <h2 class="section-title">Delivery Time</h2>
+                <div class="option-card active">
+                    <i class="fas fa-bolt"></i>
+                    <div class="option-details">
+                        <h3>Instant Delivery</h3>
+                        <p>Delivered in 10-20 minutes</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="checkout-section">
+                <h2 class="section-title">Payment Method</h2>
+                <div class="option-card active" id="payment-cod">
+                    <i class="fas fa-wallet"></i>
+                    <div class="option-details">
+                        <h3>Cash on Delivery</h3>
+                        <p>Pay when your order arrives</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="checkout-section">
+                <h2 class="section-title">Bill Summary</h2>
+                <div class="bill-card" id="bill-summary-container">
+                    <div class="bill-row">
+                        <span>Subtotal</span>
+                        <span>...</span>
+                    </div>
+                    <div class="bill-row">
+                        <span>Delivery Fee</span>
+                        <span>...</span>
+                    </div>
+                    <div class="bill-row total-row">
+                        <span>Grand Total</span>
+                        <span>...</span>
+                    </div>
+                </div>
+            </section>
+
+            <div class="fixed-checkout-bar">
+                <div class="price-details">
+                    <span class="total-text">Total</span>
+                    <span class="total-price" id="bar-total-price">...</span>
+                </div>
+                <button type="submit" class="checkout-btn" id="place-order-btn">
+                    Place Order
+                </button>
+            </div>
+        </form>
+
     </main>
 
-    <script src="script.js">
-        document.addEventListener('DOMContentLoaded', function () {
-            // Address selection
-            const addressCards = document.querySelectorAll('.address-card');
-            addressCards.forEach(card => {
-                card.addEventListener('click', function () {
-                    const radio = this.querySelector('input[type="radio"]');
-                    if (radio) {
-                        radio.checked = true;
-                        addressCards.forEach(c => c.classList.remove('selected'));
-                        this.classList.add('selected');
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- 1. Zaroori Elements ---
+            const mainContainer = document.getElementById('main-content-container');
+            const loader = document.getElementById('loading-indicator');
+            const checkoutForm = document.getElementById('checkout-form');
+            const placeOrderBtn = document.getElementById('place-order-btn');
+            
+            const addressContainer = document.getElementById('address-list-container');
+            const billContainer = document.getElementById('bill-summary-container');
+            const barTotalPrice = document.getElementById('bar-total-price');
+            const errorContainer = document.getElementById('error-message-container');
+
+            let accessToken = '';
+
+            // --- 2. Authentication Check ---
+            function checkAuth() {
+                accessToken = localStorage.getItem('accessToken');
+                if (!accessToken) {
+                    // Agar login nahi hai, toh auth page par bhejo
+                    window.location.href = "{% url 'web:auth' %}?next={% url 'web:checkout' %}";
+                    return false;
+                }
+                return true;
+            }
+
+            // --- 3. Helper Functions: API Calls ---
+            
+            // Function to fetch Cart
+            async function fetchCart() {
+                const response = await fetch('/api/cart/', {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                if (!response.ok) throw new Error('Could not fetch cart.');
+                return response.json();
+            }
+
+            // Function to fetch User Profile
+            async function fetchProfile() {
+                const response = await fetch('/api/accounts/profile/', {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                if (!response.ok) throw new Error('Could not fetch profile.');
+                return response.json();
+            }
+
+            // --- 4. Main Function: Page Load Data ---
+            async function loadCheckoutData() {
+                try {
+                    // Dono APIs ko ek saath call karein
+                    const [cartData, profileData] = await Promise.all([
+                        fetchCart(),
+                        fetchProfile()
+                    ]);
+                    
+                    // Dono data milne ke baad render karein
+                    renderBillSummary(cartData.totals);
+                    renderAddresses(profileData.addresses);
+                    
+                    // Loader chupayein aur form dikhayein
+                    loader.style.display = 'none';
+                    checkoutForm.style.display = 'block';
+
+                } catch (error) {
+                    console.error("Checkout data load karne mein error:", error);
+                    mainContainer.innerHTML = `<p class="status-message">${error.message} Please go back.</p>`;
+                }
+            }
+
+            // --- 5. Render Functions ---
+            
+            // Function to render Bill Summary
+            function renderBillSummary(totals) {
+                billContainer.innerHTML = `
+                    <div class="bill-row">
+                        <span>Subtotal</span>
+                        <span>₹${totals.subtotal}</span>
+                    </div>
+                    <div class="bill-row">
+                        <span>Delivery Fee</span>
+                        <span>₹${totals.delivery_fee}</span>
+                    </div>
+                    <div class="bill-row total-row">
+                        <span>Grand Total</span>
+                        <span>₹${totals.grand_total}</span>
+                    </div>
+                `;
+                // Neeche wala total bar bhi update karein
+                barTotalPrice.innerText = `₹${totals.grand_total}`;
+            }
+
+            // Function to render Addresses
+            function renderAddresses(addresses) {
+                addressContainer.innerHTML = ''; // Saaf karein
+                if (!addresses || addresses.length === 0) {
+                    addressContainer.innerHTML = '<p>No saved addresses. Please add one.</p>';
+                    // TODO: Yahan "Add New Address" form dikha sakte hain
+                    return;
+                }
+
+                addresses.forEach((address, index) => {
+                    // Pehle address ko default mein checked rakhein
+                    const isChecked = (index === 0) ? 'checked' : '';
+                    
+                    const addressHtml = `
+                        <div class="address-card">
+                            <input type="radio" name="address" id="addr-${address.id}" value="${address.id}" ${isChecked}>
+                            <label for="addr-${address.id}">
+                                <i class="fas ${address.address_type === 'Home' ? 'fa-home' : 'fa-briefcase'}"></i>
+                                <div class="address-details">
+                                    <h3>${address.address_type}</h3>
+                                    <p>${address.full_address}</p>
+                                    <p>${address.landmark || ''}</p>
+                                </div>
+                            </label>
+                        </div>
+                    `;
+                    addressContainer.innerHTML += addressHtml;
+                });
+            }
+
+            // --- 6. Form Submission: Order Place Karna ---
+            async function handlePlaceOrder(e) {
+                e.preventDefault(); // Form ko submit hone se rokein
+                errorContainer.innerHTML = ''; // Purana error hatayein
+                
+                // Button ko disable karein
+                placeOrderBtn.disabled = true;
+                placeOrderBtn.innerText = 'Placing Order...';
+
+                let selectedAddressId;
+                try {
+                    selectedAddressId = document.querySelector('input[name="address"]:checked').value;
+                } catch (err) {
+                    errorContainer.innerHTML = '<div class="error-message">Please select a delivery address.</div>';
+                    placeOrderBtn.disabled = false;
+                    placeOrderBtn.innerText = 'Place Order';
+                    return;
+                }
+                
+                // Hum abhi sirf 'COD' support kar rahe hain
+                const paymentMethod = 'COD';
+
+                try {
+                    const response = await fetch('/api/orders/checkout/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}',
+                            'Authorization': `Bearer ${accessToken}`
+                        },
+                        body: JSON.stringify({
+                            delivery_address_id: parseInt(selectedAddressId),
+                            payment_method: paymentMethod
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) { // 400 Bad Request (e.g., cart empty)
+                        throw new Error(result.detail || 'Could not place order.');
                     }
-                });
-            });
+                    
+                    // SUCCESS!
+                    // Order successful hone par order_success page par bhejo
+                    // Hum order ID bhi pass kar sakte hain (agar API return karta hai)
+                    // Abhi ke liye, hum bas redirect karte hain
+                    window.location.href = "{% url 'web:order-success' %}";
 
-            // Payment method selection
-            const paymentOptions = document.querySelectorAll('.payment-option');
-            paymentOptions.forEach(option => {
-                option.addEventListener('click', function () {
-                    const radio = this.querySelector('input[type="radio"]');
-                    if (radio) {
-                        radio.checked = true;
-                        paymentOptions.forEach(o => o.classList.remove('selected'));
-                        this.classList.add('selected');
-                    }
-                });
-            });
+                } catch (error) {
+                    console.error('Order place karne mein error:', error);
+                    errorContainer.innerHTML = `<div class="error-message">${error.message}</div>`;
+                    placeOrderBtn.disabled = false;
+                    placeOrderBtn.innerText = 'Place Order';
+                }
+            }
 
-            // Add new address button
-            const addAddressBtn = document.querySelector('.add-new-address-btn');
-            addAddressBtn.addEventListener('click', function () {
-                alert('Add new address functionality would open a form here.');
-                // In a real implementation, this would open a modal or form
-            });
+            // --- 7. Event Listeners ---
+            checkoutForm.addEventListener('submit', handlePlaceOrder);
 
-            // Edit address buttons
-            const editButtons = document.querySelectorAll('.edit-btn');
-            editButtons.forEach(button => {
-                button.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    e.stopPropagation(); // Prevent triggering the card selection
-                    alert('Edit address functionality would open here.');
-                    // In a real implementation, this would open an edit form
-                });
-            });
+            // --- 8. Page Load Par Shuru Karein ---
+            if (checkAuth()) {
+                loadCheckoutData();
+            }
+
         });
     </script>
 
 </body>
-
 </html>

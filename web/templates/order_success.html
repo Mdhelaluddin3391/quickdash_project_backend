@@ -5,39 +5,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Order Placed - QuickDash</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="{% static 'css/order_success_style.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="{% static 'css/index_style.css' %}"> <link rel="stylesheet" href="{% static 'css/order_success_style.css' %}">
+    
+    <title>QuickDash - Order Placed!</title>
+
+    <style>
+        /* Naye buttons ke liye thoda style */
+        .success-actions {
+            margin-top: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        .btn-primary, .btn-secondary {
+            display: block;
+            text-decoration: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: #fff;
+        }
+
+        .btn-secondary {
+            background-color: var(--light);
+            color: var(--text-dark);
+            border: 1px solid var(--border-color);
+        }
+    </style>
 </head>
 
 <body>
 
-    <header class="site-header">
-        <div class="container header-container">
-            <div class="logo">QuickDash</div>
+    <main class="success-container">
+
+        <div class="success-icon-wrapper">
+            <i class="fas fa-check-circle"></i>
         </div>
-    </header>
 
-    <main class="container">
-        <div class="success-container">
+        <h1 class="success-title">Order Placed Successfully!</h1>
+        
+        <p class="success-message">
+            Thank you for shopping with QuickDash. Your order is being prepared and will be delivered shortly.
+        </p>
 
-            <div class="success-icon-wrapper">
-                <i class="fas fa-check"></i>
-            </div>
-
-            <h1>Order Placed Successfully!</h1>
-
-            <p class="success-message">
-                Thank you for shopping with QuickDash. Your order <strong>#QD1209384</strong> has been placed and will
-                be delivered soon.
-            </p>
-
-            <div class="button-group">
-                <a href="track_order.html" class="btn btn-primary">Track Your Order</a>
-                <a href="index.html" class="btn btn-secondary">Go to Home</a>
-            </div>
-
+        <div class="success-actions">
+            <a href="{% url 'web:profile' %}" class="btn-secondary">
+                <i class="fas fa-receipt"></i> View Your Orders
+            </a>
+            <a href="{% url 'web:index' %}" class="btn-primary">
+                <i class="fas fa-shopping-bag"></i> Continue Shopping
+            </a>
         </div>
+
     </main>
 
 </body>

@@ -3,84 +3,118 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vegetables - QuickDash</title>
-    <link rel="stylesheet" href="{% static 'css/category_list_style.css' %}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="{% static 'css/catagory_style.css' %}>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="{% static 'css/index_style.css' %}"> <link rel="stylesheet" href="{% static 'css/category_list_style.css' %}"> <title>QuickDash - All Categories</title>
+
+    <style>
+        /* Loading indicator ke liye simple style */
+        .loader {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.2rem;
+            color: var(--text-muted);
+        }
+    </style>
 </head>
+
 <body>
 
-    <header class=" site-header">
-    <div class="container header-container">
-        <a href="index.html" class="back-link">
+    <header class="simple-header">
+        <a href="{% url 'web:index' %}" class="back-button">
             <i class="fas fa-arrow-left"></i>
-            Home
         </a>
-        <div class="logo">QuickDash</div>
-        <a href="cart.html" class="cart-link" title="Cart">
-            <i class="fas fa-shopping-cart"></i>
-        </a>
-    </div>
-    <div class="search-bar-wrapper">
-        <form class="search-bar" method="GET" action="#">
-            <input type="text" name="q" placeholder="Search in Vegetables..." value="">
-        </form>
-    </div>
-    </header>
+        <h1 class="header-title">All Categories</h1>
+        <div class="header-placeholder"></div> </header>
 
-    <main class="container">
+    <main class="category-list-main">
+        
+        <div class="category-grid" id="category-grid-container">
+            <div class="loader" id="loading-indicator">
+                <i class="fas fa-spinner fa-spin"></i> Loading categories...
+            </div>
 
-        <h1 class="main-category-title">All Vegetables</h1>
-        <p class="category-description">Fresh, quality vegetables delivered to your doorstep in minutes!</p>
-
-        <div class="subcategory-grid">
-            <a href="category_detail.html" class="subcategory-card">
-                <div class="image-wrapper">
-                    <img src="https://via.placeholder.com/150/D4F0C2/3E8009?text=Leafy" alt="Leafy Greens">
-                </div>
-                <div class="card-details">
-                    <h3>Leafy Greens</h3>
-                    <p>Spinach, Methi, Coriander...</p>
-                </div>
-                <i class="fas fa-chevron-right"></i>
-            </a>
-            <a href="category_detail.html" class="subcategory-card">
-                <div class="image-wrapper">
-                    <img src="https://via.placeholder.com/150/FFDDC1/8B4513?text=Root" alt="Root Vegetables">
-                </div>
-                <div class="card-details">
-                    <h3>Root Vegetables</h3>
-                    <p>Potato, Onion, Carrot, Radish...</p>
-                </div>
-                <i class="fas fa-chevron-right"></i>
-            </a>
-            <a href="category_detail.html" class="subcategory-card">
-                <div class="image-wrapper">
-                    <img src="https://via.placeholder.com/150/FFFACD/FFD700?text=Exotic" alt="Exotic Veggies">
-                </div>
-                <div class="card-details">
-                    <h3>Exotic Veggies</h3>
-                    <p>Broccoli, Zucchini, Bell Peppers...</p>
-                </div>
-                <i class="fas fa-chevron-right"></i>
-            </a>
-            <a href="category_detail.html" class="subcategory-card">
-                <div class="image-wrapper">
-                    <img src="https://via.placeholder.com/150/E0BBE4/9575CD?text=Beans" alt="Gourds & Beans">
-                </div>
-                <div class="card-details">
-                    <h3>Gourds & Beans</h3>
-                    <p>Lady Finger, Green Beans, Tomato...</p>
-                </div>
-                <i class="fas fa-chevron-right"></i>
-            </a>
-
-        </div>
-
+            </div>
     </main>
 
-    </body>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            const container = document.getElementById('category-grid-container');
+            const loader = document.getElementById('loading-indicator');
+
+            // 1. Category data fetch karne ke liye function
+            async function fetchCategories() {
+                try {
+                    // API endpoint (store/urls.py se)
+                    const response = await fetch('/api/store/categories/');
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const categories = await response.json();
+                    
+                    // Data milne ke baad, render function ko call karein
+                    renderCategories(categories);
+
+                } catch (error) {
+                    console.error("Categories fetch karne mein error:", error);
+                    loader.innerText = "Categories load nahi ho saki. Please try again.";
+                }
+            }
+
+            // 2. Categories ko HTML mein render karne ka function
+            function renderCategories(categories) {
+                // Loader ko hatayein
+                container.innerHTML = ''; 
+
+                if (!categories || categories.length === 0) {
+                    container.innerHTML = "<p class='loader'>No categories found.</p>";
+                    return;
+                }
+
+                categories.forEach(category => {
+                    // Data aapke CategorySerializer ke hisaab se (name, icon, slug, children)
+                    
+                    // Parent Category
+                    const categoryHtml = `
+                        <a href="/category/${category.slug}/" class="category-list-card">
+                            <div class="category-icon-large">
+                                <i class="${category.icon || 'fas fa-tag'}"></i> 
+                            </div>
+                            <h3>${category.name}</h3>
+                        </a>
+                    `;
+                    container.innerHTML += categoryHtml;
+
+                    // Agar 'children' (sub-categories) hain, toh unhe bhi render karein
+                    if (category.children && category.children.length > 0) {
+                        category.children.forEach(child => {
+                            const childHtml = `
+                                <a href="/category/${child.slug}/" class="category-list-card sub-category">
+                                    <div class="category-icon-large">
+                                        <i class="${child.icon || 'fas fa-tag'}"></i> 
+                                    </div>
+                                    <h3>${child.name}</h3>
+                                </a>
+                            `;
+                            container.innerHTML += childHtml;
+                        });
+                    }
+                });
+            }
+
+            // 3. Page load par main function ko call karein
+            fetchCategories();
+        });
+    </script>
+
+</body>
 
 </html>

@@ -3,161 +3,238 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-R">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Support Chat - QuickDash</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="{% static 'css/index_style.css' %}">
     <link rel="stylesheet" href="{% static 'css/support_chat_style.css' %}">
+    
+    <title>QuickDash - Support Chat</title>
+
+    <style>
+        /* Loading/Error indicator ke liye */
+        .status-message {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.1rem;
+            color: var(--text-muted);
+        }
+    </style>
 </head>
 
 <body>
 
-    <header class="site-header">
-        <div class="container header-container">
-            <a href="support.html" class="back-link">
-                <i class="fas fa-arrow-left"></i>
-                All Tickets
-            </a>
-            <div class="logo">Support Chat</div>
-        </div>
+    <header class="simple-header">
+        <a href="{% url 'web:support' %}" class="back-button">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <h1 class="header-title" id="header-title">Ticket</h1>
+        <div class="header-placeholder"></div>
     </header>
 
-    <main class="container">
-
-        <div class="chat-container">
-            <div class="chat-header">
-                <h1 class="ticket-subject">#TKT-A8B2C1: Item missing from order</h1>
-                <span class="ticket-status open">Open</span>
-            </div>
-
-            <div class="chat-messages" id="chat-messages">
-
-                <div class="message customer">
-                    <div class="message-bubble">
-                        <p class="message-text">Mera order QD1209384 abhi deliver hua, lekin usmein 2 ke bajaye 1 hi
-                            milk packet tha.</p>
-                        <span class="message-time">10 Nov, 10:30 AM</span>
-                    </div>
-                </div>
-
-                <div class="message staff">
-                    <div class="message-bubble">
-                        <p class="message-user">Rohan (Support Staff)</p>
-                        <p class="message-text">Hi, inconvenience ke liye khed hai. Hum isse check kar rahe hain.</p>
-                        <span class="message-time">10 Nov, 10:35 AM</span>
-                    </div>
-                </div>
-
-            </div>
-
-            <div class="chat-reply-form">
-                <form id="reply-form">
-                    <div class="form-group">
-                        <textarea id="reply-message" rows="3" placeholder="Type your reply here..." required></textarea>
-                        <button type="submit" class="btn-send" id="send-btn" aria-label="Send">
-                            <i class="fas fa-paper-plane"></i>
-                        </button>
-                    </div>
-                </form>
-            </div>
+    <main class="chat-container" id="chat-container">
+        
+        <div class="status-message" id="loading-indicator">
+            <i class="fas fa-spinner fa-spin"></i> Loading messages...
         </div>
 
-    </main>
+        </main>
+
+    <form class="chat-input-form" id="message-form">
+        <input type="text" id="message-input" name="message" placeholder="Type your message..." required>
+        <button type="submit" class="send-btn" id="send-btn">
+            <i class="fas fa-paper-plane"></i>
+        </button>
+    </form>
+
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // 1. URL se ticket ID nikaalein
-            // const ticketId = new URLSearchParams(window.location.search).get('id');
-            const ticketId = 1; // Dummy ID
 
-            const chatMessages = document.getElementById('chat-messages');
-            const replyForm = document.getElementById('reply-form');
+            // --- 1. Zaroori Elements ---
+            const chatContainer = document.getElementById('chat-container');
+            const loader = document.getElementById('loading-indicator');
+            const headerTitle = document.getElementById('header-title');
+            
+            // Form elements
+            const messageForm = document.getElementById('message-form');
+            const messageInput = document.getElementById('message-input');
             const sendBtn = document.getElementById('send-btn');
-            const messageInput = document.getElementById('reply-message');
 
-            // --- Function: Naya message bubble add karna ---
-            function addMessageBubble(message, isCustomer, userName = null) {
-                const messageDiv = document.createElement('div');
-                messageDiv.classList.add('message', isCustomer ? 'customer' : 'staff');
+            let accessToken = '';
+            let ticketId = '';
 
-                let userHtml = '';
-                if (userName) {
-                    userHtml = `<p class="message-user">${userName}</p>`;
+            // --- 2. Authentication Check ---
+            function checkAuth() {
+                accessToken = localStorage.getItem('accessToken');
+                if (!accessToken) {
+                    window.location.href = "{% url 'web:auth' %}?next=" + window.location.pathname;
+                    return false;
+                }
+                return true;
+            }
+
+            // --- 3. URL se Ticket ID nikalna ---
+            function getTicketId() {
+                try {
+                    const pathParts = window.location.pathname.split('/');
+                    const id = pathParts[3]; // [0]="", [1]="support", [2]="chat", [3]="<id>"
+                    if (!id || isNaN(id)) {
+                        throw new Error("Invalid ID");
+                    }
+                    return id;
+                } catch (e) {
+                    console.error("ID nahi mil saki:", e);
+                    chatContainer.innerHTML = "<p class='status-message'>Error: Invalid Chat URL.</p>";
+                    messageForm.style.display = 'none';
+                    return null;
+                }
+            }
+
+            // --- 4. Main Function: Messages Fetch Karna ---
+            async function fetchMessages(id) {
+                loader.style.display = 'block'; // Loader dikhayein
+                
+                try {
+                    // API (support/urls.py se)
+                    const response = await fetch(`/api/support/tickets/${id}/messages/`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${accessToken}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        if (response.status === 401) { // Token invalid
+                            handleLogout();
+                        }
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const messages = await response.json();
+                    
+                    // Data milne ke baad, render karein
+                    renderMessages(messages);
+
+                } catch (error) {
+                    console.error("Messages fetch karne mein error:", error);
+                    loader.innerText = 'Could not load messages.';
+                }
+            }
+
+            // --- 5. Render Function: Messages ko HTML mein badalna ---
+            function renderMessages(messages) {
+                loader.style.display = 'none'; // Loader chupayein
+                chatContainer.innerHTML = ''; // Saaf karein
+
+                if (!messages || messages.length === 0) {
+                    chatContainer.innerHTML = '<p class="status-message">No messages yet. Send a message to start.</p>';
+                    return;
                 }
 
-                messageDiv.innerHTML = `
-                    <div class="message-bubble">
-                        ${userHtml}
-                        <p class="message-text">${message.text || message.message}</p>
-                        <span class="message-time">${new Date(message.created_at || Date.now()).toLocaleTimeString()}</span>
+                // Title ko pehle message ke ticket subject se set kar sakte hain
+                if (messages[0].ticket_subject) {
+                     headerTitle.innerText = `Ticket #${ticketId}`;
+                }
+
+                messages.forEach(message => {
+                    appendMessage(message);
+                });
+                
+                // Chat ko neeche scroll karein
+                scrollToBottom();
+            }
+
+            // --- 6. Helper Function: Ek naya message add karna ---
+            function appendMessage(message) {
+                // 'message.is_from_user' yeh batata hai ki message user ne bheja hai (right side)
+                // ya support agent ne (left side)
+                const messageClass = message.is_from_user ? 'chat-bubble sent' : 'chat-bubble received';
+                
+                const messageHtml = `
+                    <div class="${messageClass}">
+                        <p>${message.message}</p>
                     </div>
                 `;
-                chatMessages.appendChild(messageDiv);
-                // Scroll to bottom
-                chatMessages.scrollTop = chatMessages.scrollHeight;
+                chatContainer.innerHTML += messageHtml;
             }
 
-            // --- 2. Page Load par Chat History Fetch karein ---
-            function loadChat() {
-                // fetch(`/api/support/tickets/${ticketId}/`)
-                // .then(res => res.json())
-                // .then(data => {
-                //     document.querySelector('.ticket-subject').innerText = `#${data.ticket_id}: ${data.subject}`;
-                //     document.querySelector('.ticket-status').innerText = data.status;
-                //     document.querySelector('.ticket-status').className = `ticket-status ${data.status.toLowerCase()}`;
-
-                //     chatMessages.innerHTML = ''; // Clear dummies
-                //     data.messages.forEach(msg => {
-                //         const isCustomer = !msg.user.is_staff;
-                //         const userName = msg.user.is_staff ? `${msg.user.first_name || 'Staff'}` : null;
-                //         addMessageBubble(msg, isCustomer, userName);
-                //     });
-                // });
+            // --- 7. Helper Function: Chat ko neeche scroll karna ---
+            function scrollToBottom() {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
             }
 
-            // --- 3. Form Submit Handle karein ---
-            replyForm.addEventListener('submit', (e) => {
+            // --- 8. Form Submission: Naya Message Bhejna ---
+            async function handleMessageSubmit(e) {
                 e.preventDefault();
                 const messageText = messageInput.value.trim();
-                if (!messageText) return;
+                if (messageText === '') return; // Khaali message na bhejein
 
                 sendBtn.disabled = true;
-                sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
-                // API call
-                // fetch(`/api/support/tickets/${ticketId}/add-message/`, {
-                //     method: 'POST',
-                //     headers: { 'Content-Type': 'application/json', ...authHeaders },
-                //     body: JSON.stringify({ message: messageText })
-                // })
-                // .then(res => res.json())
-                // .then(data => {
-                //     if (data.id) {
-                //         addMessageBubble(data, true); // Naya message (customer ka)
-                //         messageInput.value = '';
-                //     } else {
-                //         alert('Error sending message.');
-                //     }
-                // })
-                // .finally(() => {
-                //     sendBtn.disabled = false;
-                //     sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i>';
-                // });
+                try {
+                    const response = await fetch(`/api/support/tickets/${ticketId}/messages/`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}',
+                            'Authorization': `Bearer ${accessToken}`
+                        },
+                        body: JSON.stringify({ message: messageText })
+                    });
+                    
+                    const newMessage = await response.json();
 
-                // Dummy success
-                setTimeout(() => {
-                    addMessageBubble({ message: messageText, created_at: Date.now() }, true);
-                    messageInput.value = '';
+                    if (!response.ok) {
+                        throw new Error(newMessage.detail || 'Failed to send message');
+                    }
+                    
+                    // SUCCESS!
+                    messageInput.value = ''; // Input clear karein
+                    
+                    // "No messages" ko hatayein agar maujood hai
+                    const noMsg = chatContainer.querySelector('.status-message');
+                    if (noMsg) {
+                        noMsg.remove();
+                    }
+                    
+                    // Naye message ko chat mein add karein
+                    appendMessage(newMessage);
+                    scrollToBottom();
+
+                } catch (error) {
+                    console.error('Message send karne mein error:', error);
+                    alert('Error sending message. Please try again.');
+                } finally {
                     sendBtn.disabled = false;
-                    sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i>';
-                }, 500);
-            });
+                }
+            }
 
-            // Initial load
-            // loadChat();
+            // Helper function (agar token invalid ho)
+            function handleLogout() {
+                localStorage.removeItem('accessToken');
+                localStorage.removeItem('refreshToken');
+                checkAuth(); // Redirect karega
+            }
+
+            // --- 9. Event Listeners ---
+            messageForm.addEventListener('submit', handleMessageSubmit);
+
+            // --- 10. Page Load Par Shuru Karein ---
+            if (checkAuth()) {
+                ticketId = getTicketId();
+                if (ticketId) {
+                    fetchMessages(ticketId);
+                }
+            }
+
         });
     </script>
 
 </body>
-
 </html>

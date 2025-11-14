@@ -5,235 +5,196 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login or Signup - QuickDash</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{% static 'css/auth_style.css' %}">
+    <title>QuickDash - Login/Sign Up</title>
+    <style>
+        /* Error messages ke liye helper style */
+        .error-message {
+            color: #ff4d4d;
+            font-size: 0.9em;
+            margin-top: 5px;
+            text-align: left;
+            width: 100%;
+        }
+    </style>
 </head>
 
 <body>
 
-    <div class="auth-container">
-        <div class="auth-card">
-
-            <a href="index.html" class="close-btn" title="Close">
-                <i class="fas fa-times"></i>
-            </a>
-
-            <div class="auth-header">
-                <i class="fas fa-mobile-alt header-icon"></i>
-                <h2>Login or Signup</h2>
-                <p>Enter your mobile number to get an OTP</p>
-            </div>
-
-            <form id="phone-form" class="auth-form">
-                <label for="phone">Mobile Number</label>
-                <div class="input-group">
-                    <span class="country-code">+91</span>
-                    <input type="tel" id="phone" name="phone" placeholder="Enter your 10-digit mobile number"
-                        maxlength="10" required>
+    <div class="container" id="container">
+        <div class="form-container sign-up-container">
+            <form id="register-form">
+                <h1>Create Account</h1>
+                <div class="social-container">
+                    <a href="#" class="social"><i class="fab fa-google-plus-g"></i></a>
                 </div>
-                <button type="submit" class="submit-btn">
-                    <span>Get OTP</span>
-                </button>
+                <span>or use your email for registration</span>
+                <input type="text" name="first_name" placeholder="First Name" required />
+                <input type="text" name="last_name" placeholder="Last Name" required />
+                <input type="email" name="email" placeholder="Email" required />
+                <input type="text" name="phone" placeholder="Phone (e.g., +91...)" required />
+                <input type="password" name="password" placeholder="Password" required />
+                <button type="submit">Sign Up</button>
+                <div class="error-message" id="register-error"></div>
             </form>
+        </div>
 
-            <form id="otp-form" class="auth-form" style="display: none;">
-                <label for="otp">Enter OTP</label>
-                <p class="otp-info">We've sent a 6-digit OTP to <strong id="phone-display">+91 9876543210</strong>.
-                    <a href="#" id="change-number">Change</a>
-                </p>
-                <div class="input-group otp-inputs">
-                    <input type="tel" class="otp-box" maxlength="1" data-index="0">
-                    <input type="tel" class="otp-box" maxlength="1" data-index="1">
-                    <input type="tel" class="otp-box" maxlength="1" data-index="2">
-                    <input type="tel" class="otp-box" maxlength="1" data-index="3">
-                    <input type="tel" class="otp-box" maxlength="1" data-index="4">
-                    <input type="tel" class="otp-box" maxlength="1" data-index="5">
+        <div class="form-container sign-in-container">
+            <form id="login-form">
+                <h1>Sign in</h1>
+                <div class="social-container">
+                    <a href="#" class="social"><i class="fab fa-google-plus-g"></i></a>
                 </div>
-                <button type="submit" class="submit-btn" id="verify-btn">
-                    <span>Verify & Proceed</span>
-                </button>
-                <div class="resend-timer">
-                    Resend OTP in <span id="timer">30s</span>
-                </div>
+                <span>or use your account</span>
+                <input type="email" name="email" placeholder="Email" required />
+                <input type="password" name="password" placeholder="Password" required />
+                <a href="#">Forgot your password?</a>
+                <button type="submit">Sign In</button>
+                <div class="error-message" id="login-error"></div>
             </form>
+        </div>
 
-            <div class="auth-footer">
-                By continuing, you agree to our
-                <a href="#">Terms of Service</a> & <a href="#">Privacy Policy</a>.
+        <div class="overlay-container">
+            <div class="overlay">
+                <div class="overlay-panel overlay-left">
+                    <h1>Welcome Back!</h1>
+                    <p>To keep connected with us please login with your personal info</p>
+                    <button class="ghost" id="signIn">Sign In</button>
+                </div>
+                <div class="overlay-panel overlay-right">
+                    <h1>Hello, Friend!</h1>
+                    <p>Enter your personal details and start journey with us</p>
+                    <button class="ghost" id="signUp">Sign Up</button>
+                </div>
             </div>
-
         </div>
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const phoneForm = document.getElementById('phone-form');
-            const otpForm = document.getElementById('otp-form');
-            const changeNumberLink = document.getElementById('change-number');
-            const phoneDisplay = document.getElementById('phone-display');
-            const verifyBtn = document.getElementById('verify-btn');
-            const timerDisplay = document.getElementById('timer');
-            const otpBoxes = document.querySelectorAll('.otp-box');
 
-            let countdown;
-            let timeLeft = 30;
+            // --- 1. UI Elements (Toggle, Forms, Errors) ---
+            const signUpButton = document.getElementById('signUp');
+            const signInButton = document.getElementById('signIn');
+            const container = document.getElementById('container');
 
-            // Handle "Get OTP" click
-            phoneForm.addEventListener('submit', (e) => {
-                e.preventDefault();
+            const loginForm = document.getElementById('login-form');
+            const registerForm = document.getElementById('register-form');
+            
+            const loginError = document.getElementById('login-error');
+            const registerError = document.getElementById('register-error');
 
-                const phoneInput = document.getElementById('phone');
-                const phoneValue = phoneInput.value.trim();
-
-                // Basic phone validation
-                if (!/^\d{10}$/.test(phoneValue)) {
-                    phoneInput.parentElement.classList.add('shake');
-                    setTimeout(() => {
-                        phoneInput.parentElement.classList.remove('shake');
-                    }, 300);
-                    phoneInput.focus();
-                    return;
-                }
-
-                // Update phone number display
-                phoneDisplay.innerText = `+91 ${phoneValue}`;
-
-                // Show loading state
-                const submitBtn = phoneForm.querySelector('.submit-btn');
-                const originalText = submitBtn.innerHTML;
-                submitBtn.innerHTML = '<div class="spinner"></div><span>Sending OTP...</span>';
-                submitBtn.disabled = true;
-
-                // Simulate API call
-                setTimeout(() => {
-                    // Switch forms
-                    phoneForm.style.display = 'none';
-                    otpForm.style.display = 'block';
-
-                    // Reset button
-                    submitBtn.innerHTML = originalText;
-                    submitBtn.disabled = false;
-
-                    // Focus first OTP box
-                    otpBoxes[0].focus();
-
-                    // Start timer
-                    startTimer();
-                }, 1500);
-            });
-
-            // Handle "Change" link click
-            changeNumberLink.addEventListener('click', (e) => {
-                e.preventDefault();
-                otpForm.style.display = 'none';
-                phoneForm.style.display = 'block';
-
-                // Clear timer
-                if (countdown) {
-                    clearInterval(countdown);
-                }
-            });
-
-            // Handle OTP input
-            otpBoxes.forEach((box, index) => {
-                box.addEventListener('input', (e) => {
-                    const value = e.target.value;
-
-                    // Auto-focus next box if value entered
-                    if (value && index < otpBoxes.length - 1) {
-                        otpBoxes[index + 1].focus();
-                    }
-
-                    // Update filled state
-                    if (value) {
-                        box.classList.add('filled');
-                    } else {
-                        box.classList.remove('filled');
-                    }
-
-                    // Enable verify button if all boxes filled
-                    const allFilled = Array.from(otpBoxes).every(box => box.value);
-                    verifyBtn.disabled = !allFilled;
-                });
-
-                box.addEventListener('keydown', (e) => {
-                    // Handle backspace
-                    if (e.key === 'Backspace' && !box.value && index > 0) {
-                        otpBoxes[index - 1].focus();
-                    }
-
-                    // Handle arrow keys
-                    if (e.key === 'ArrowLeft' && index > 0) {
-                        otpBoxes[index - 1].focus();
-                    }
-                    if (e.key === 'ArrowRight' && index < otpBoxes.length - 1) {
-                        otpBoxes[index + 1].focus();
-                    }
-                });
-
-                // Prevent non-digit input
-                box.addEventListener('keypress', (e) => {
-                    if (!/\d/.test(e.key)) {
-                        e.preventDefault();
-                    }
-                });
-            });
-
-            // Handle OTP form submission
-            otpForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-
-                // Get OTP value
-                const otp = Array.from(otpBoxes).map(box => box.value).join('');
-
-                // Show loading state
-                const originalText = verifyBtn.innerHTML;
-                verifyBtn.innerHTML = '<div class="spinner"></div><span>Verifying...</span>';
-                verifyBtn.disabled = true;
-
-                // Simulate verification
-                setTimeout(() => {
-                    // In a real app, you would verify the OTP with your backend
-                    alert(`OTP ${otp} verified successfully! Redirecting...`);
-
-                    // Reset button
-                    verifyBtn.innerHTML = originalText;
-                    verifyBtn.disabled = false;
-
-                    // Here you would redirect the user to the dashboard
-                    // window.location.href = 'dashboard.html';
-                }, 1500);
-            });
-
-            // Timer function
-            function startTimer() {
-                timeLeft = 30;
-                timerDisplay.textContent = `${timeLeft}s`;
-
-                if (countdown) {
-                    clearInterval(countdown);
-                }
-
-                countdown = setInterval(() => {
-                    timeLeft--;
-                    timerDisplay.textContent = `${timeLeft}s`;
-
-                    if (timeLeft <= 0) {
-                        clearInterval(countdown);
-                        timerDisplay.parentElement.innerHTML =
-                            '<a href="#" id="resend-otp">Resend OTP</a>';
-
-                        document.getElementById('resend-otp').addEventListener('click', (e) => {
-                            e.preventDefault();
-                            // Resend OTP logic would go here
-                            alert('OTP has been resent!');
-                            startTimer();
-                        });
-                    }
-                }, 1000);
+            // --- 2. Check agar user pehle se logged-in hai ---
+            // Agar token hai, toh user ko profile par bhej do
+            if (localStorage.getItem('accessToken')) {
+                // Hum profile page par bhej rahe hain (jo abhi humne banaya nahi hai)
+                // Abhi ke liye homepage par bhejte hain
+                window.location.href = "{% url 'web:index' %}"; 
             }
+
+            // --- 3. Toggle Logic (Aapke CSS ke hisab se) ---
+            signUpButton.addEventListener('click', () => {
+                container.classList.add("right-panel-active");
+                loginError.innerText = '';
+                registerError.innerText = '';
+            });
+
+            signInButton.addEventListener('click', () => {
+                container.classList.remove("right-panel-active");
+                loginError.innerText = '';
+                registerError.innerText = '';
+            });
+
+            // --- 4. Login Form Submission ---
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault(); // Page ko reload hone se rokein
+                loginError.innerText = ''; // Purana error saaf karein
+                const button = loginForm.querySelector('button');
+                button.disabled = true;
+                button.innerText = 'Signing In...';
+
+                const formData = new FormData(loginForm);
+                const data = Object.fromEntries(formData.entries());
+
+                try {
+                    const response = await fetch('/api/token/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(data),
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        // Agar 401 (Unauthorized) ya 400 (Bad Request)
+                        loginError.innerText = result.detail || 'Invalid email or password.';
+                    } else {
+                        // SUCCESS!
+                        localStorage.setItem('accessToken', result.access);
+                        localStorage.setItem('refreshToken', result.refresh);
+                        
+                        // User ko homepage par bhej de
+                        window.location.href = "{% url 'web:index' %}";
+                    }
+
+                } catch (error) {
+                    console.error('Login error:', error);
+                    loginError.innerText = 'Something went wrong. Please try again.';
+                } finally {
+                    button.disabled = false;
+                    button.innerText = 'Sign In';
+                }
+            });
+
+            // --- 5. Register Form Submission ---
+            registerForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                registerError.innerText = '';
+                const button = registerForm.querySelector('button');
+                button.disabled = true;
+                button.innerText = 'Creating Account...';
+
+                const formData = new FormData(registerForm);
+                const data = Object.fromEntries(formData.entries());
+
+                try {
+                    // Endpoint (accounts/urls.py se)
+                    const response = await fetch('/api/accounts/register/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(data),
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) { // 400 Bad Request
+                        // Django se aaye validation errors ko parse karein
+                        let errorMsg = '';
+                        for (const key in result) {
+                            errorMsg += `${key}: ${result[key][0]} \n`; // e.g., "email: user with this email already exists."
+                        }
+                        registerError.innerText = errorMsg || 'Registration failed. Please check your details.';
+                    } else {
+                        // SUCCESS!
+                        // User ko login tab par bhej de
+                        container.classList.remove("right-panel-active");
+                        loginError.innerText = 'Registration successful! Please sign in.';
+                    }
+
+                } catch (error) {
+                    console.error('Registration error:', error);
+                    registerError.innerText = 'Something went wrong. Please try again.';
+                } finally {
+                    button.disabled = false;
+                    button.innerText = 'Sign Up';
+                }
+            });
+
         });
     </script>
 

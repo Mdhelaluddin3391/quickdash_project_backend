@@ -5,168 +5,213 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Order Details - QuickDash</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="{% static 'css/index_style.css' %}">
     <link rel="stylesheet" href="{% static 'css/order_detail_style.css' %}">
+    
+    <title>QuickDash - Order Details</title>
+
+    <style>
+        /* Loading/Error indicator ke liye */
+        .status-message {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2rem;
+            color: var(--text-muted);
+        }
+    </style>
 </head>
 
 <body>
 
-    <header class="site-header">
-        <div class="container header-container">
-            <a href="profile.html" class="back-link">
-                <i class="fas fa-arrow-left"></i>
-                My Orders
-            </a>
-            <div class="logo">Order Details</div>
-        </div>
+    <header class="simple-header">
+        <a href="{% url 'web:profile' %}" class="back-button">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <h1 class="header-title" id="header-title">Order Details</h1>
+        <div class="header-placeholder"></div>
     </header>
 
-    <main class="container">
+    <main id="main-content-container">
 
-        <div class="order-summary-card">
-
-            <div class="order-main-info">
-                <div class="info-left">
-                    <h1 class="order-id">Order #QD1209384</h1>
-                    <p class="order-date">Placed on: 10 Nov 2025, 10:00 AM</p>
-                </div>
-                <div class="info-right">
-                    <span class="order-status delivered">
-                        <i class="fas fa-check-circle"></i> Delivered
-                    </span>
-                </div>
-            </div>
-
-            <div class="order-section">
-                <h2 class="section-title">Items Ordered (<span id="item-count">3</span>)</h2>
-                <div class="item-list">
-
-                    <div class="item-card">
-                        <div class="item-info">
-                            <span class="item-qty">1 x</span>
-                            <span class="item-name">Fresh Milk 500ml</span>
-                        </div>
-                        <span class="item-price">₹28.00</span>
-                    </div>
-
-                    <div class="item-card">
-                        <div class="item-info">
-                            <span class="item-qty">2 x</span>
-                            <span class="item-name">Banana (Dozen)</span>
-                        </div>
-                        <span class="item-price">₹100.00</span>
-                    </div>
-
-                    <div class="item-card">
-                        <div class="item-info">
-                            <span class="item-qty">1 x</span>
-                            <span class="item-name">Choco Cookies</span>
-                        </div>
-                        <span class="item-price">₹85.00</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="order-section">
-                <h2 class="section-title">Delivery & Payment</h2>
-                <div class="details-grid">
-                    <div>
-                        <strong>Delivered To:</strong>
-                        <p>Rohan Sharma, 123, Sunrise Apartments, Opp. City Mall, Dharmanagar - 799250</p>
-                    </div>
-                    <div>
-                        <strong>Payment Method:</strong>
-                        <p>Cash on Delivery (COD)</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="order-section price-breakdown">
-                <h2 class="section-title">Price Breakdown</h2>
-                <div class="summary-row">
-                    <span>Subtotal</span>
-                    <span id="summary-subtotal">₹213.00</span>
-                </div>
-                <div class="summary-row discount">
-                    <span>Discount (SAVE10)</span>
-                    <span id="summary-discount">- ₹21.30</span>
-                </div>
-                <div class="summary-row">
-                    <span>Delivery Fee</span>
-                    <span id="summary-delivery">₹20.00</span>
-                </div>
-                <div class="summary-row">
-                    <span>Rider Tip</span>
-                    <span id="summary-tip">₹10.00</span>
-                </div>
-                <div class="summary-row">
-                    <span>Taxes</span>
-                    <span id="summary-taxes">₹9.59</span>
-                </div>
-                <div class="summary-divider"></div>
-                <div class="summary-row total">
-                    <span>Grand Total</span>
-                    <span id="summary-total">₹231.29</span>
-                </div>
-            </div>
-
-            <div class="order-actions">
-                <button class="btn btn-secondary">
-                    <i class="fas fa-headset"></i> Get Support
-                </button>
-                <button class="btn btn-primary" id="reorder-btn">
-                    <i class="fas fa-redo"></i> Reorder
-                </button>
-            </div>
-
+        <div class="status-message" id="loading-indicator">
+            <i class="fas fa-spinner fa-spin"></i> Loading order details...
         </div>
 
-    </main>
+        </main>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // 1. URL se order ID nikaalein
-            // const orderId = new URLSearchParams(window.location.search).get('order_id');
-            const orderId = "QD1209384"; // Dummy ID
 
-            // 2. "Reorder" button ko handle karein
-            const reorderBtn = document.getElementById('reorder-btn');
-            reorderBtn.addEventListener('click', () => {
-                reorderBtn.disabled = true;
-                reorderBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding...';
+            // --- 1. Zaroori Elements ---
+            const mainContainer = document.getElementById('main-content-container');
+            const loader = document.getElementById('loading-indicator');
+            const headerTitle = document.getElementById('header-title');
 
-                // Backend API ko call karein
-                // fetch(`/api/orders/${orderId}/reorder/`, { method: 'POST', ...headers })
-                // .then(res => res.json())
-                // .then(data => {
-                //     if(data.cart) {
-                //         alert('Items added to your cart!');
-                //         window.location.href = 'cart.html';
-                //     } else {
-                //         alert(data.error || 'Could not reorder all items.');
-                //         reorderBtn.disabled = false;
-                //         reorderBtn.innerHTML = '<i class="fas fa-redo"></i> Reorder';
-                //     }
-                // });
+            let accessToken = '';
+            let orderId = '';
 
-                // Dummy success
-                setTimeout(() => {
-                    alert('Items added to your cart!');
-                    window.location.href = 'cart.html';
-                }, 1000);
-            });
+            // --- 2. Authentication Check ---
+            function checkAuth() {
+                accessToken = localStorage.getItem('accessToken');
+                if (!accessToken) {
+                    // Agar login nahi hai, toh auth page par bhejo
+                    window.location.href = "{% url 'web:auth' %}?next=" + window.location.pathname;
+                    return false;
+                }
+                return true;
+            }
 
-            // 3. Page Load par Order Details Fetch karein
-            // fetch(`/api/orders/${orderId}/`)
-            // .then(res => res.json())
-            // .then(data => {
-            //     // Yahaan aap saare elements (like #order-id, #summary-subtotal, etc.)
-            //     // ko 'data' object se update karenge.
-            // });
+            // --- 3. URL se Order ID nikalna ---
+            function getOrderId() {
+                try {
+                    const pathParts = window.location.pathname.split('/');
+                    const id = pathParts[2]; // [0]="", [1]="order", [2]="<id>"
+                    if (!id || isNaN(id)) {
+                        throw new Error("Invalid ID");
+                    }
+                    return id;
+                } catch (e) {
+                    console.error("ID nahi mil saki:", e);
+                    mainContainer.innerHTML = "<p class='status-message'>Error: Invalid Order URL.</p>";
+                    return null;
+                }
+            }
+
+            // --- 4. Main Function: Order Data Fetch Karna ---
+            async function fetchOrderDetails(id) {
+                try {
+                    const response = await fetch(`/api/orders/${id}/`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${accessToken}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        if (response.status === 401) { // Token invalid
+                            handleLogout(); 
+                        }
+                        if (response.status === 404) { // Order not found
+                            throw new Error('Order not found.');
+                        }
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const orderData = await response.json();
+                    
+                    // Data milne ke baad, render karein
+                    renderOrder(orderData);
+
+                } catch (error) {
+                    console.error("Order fetch karne mein error:", error);
+                    mainContainer.innerHTML = `<p class="status-message">${error.message}</p>`;
+                } finally {
+                    loader.style.display = 'none'; // Loader chupayein
+                }
+            }
+            
+            // --- 5. Render Function: Data ko HTML mein badalna ---
+            function renderOrder(order) {
+                // Header update karein
+                headerTitle.innerText = `Order #${order.id}`;
+
+                // Order items HTML
+                const itemsHtml = order.items.map(item => `
+                    <div class="order-item-card">
+                        <img src="${item.product_image}" alt="${item.product_name}" class="item-image">
+                        <div class="item-details">
+                            <h3 class="item-title">${item.product_name}</h3>
+                            <p class="item-variant">${item.variant_name}</p>
+                            <p class="item-quantity">Quantity: ${item.quantity}</p>
+                        </div>
+                        <div class="item-price">₹${item.price}</div>
+                    </div>
+                `).join('');
+
+                // Address HTML
+                const address = order.delivery_address;
+                const addressHtml = `
+                    <div class="address-details-card">
+                        <h3>${address.address_type}</h3>
+                        <p>${address.full_address}</p>
+                        <p>${address.landmark || ''}</p>
+                        <p>${address.phone}</p>
+                    </div>
+                `;
+
+                // Bill Summary HTML
+                const billHtml = `
+                    <div class="bill-row">
+                        <span>Subtotal</span>
+                        <span>₹${order.subtotal_amount}</span>
+                    </div>
+                    <div class="bill-row">
+                        <span>Delivery Fee</span>
+                        <span>₹${order.delivery_fee}</span>
+                    </div>
+                    <div class="bill-row total-row">
+                        <span>Grand Total</span>
+                        <span>₹${order.total_amount}</span>
+                    </div>
+                `;
+
+                // Poora main content HTML
+                mainContainer.innerHTML = `
+                    <section class="order-status-section">
+                        <div class="status-card">
+                            <div class="status-icon ${order.status.toLowerCase()}">
+                                <i class="fas fa-check-circle"></i> 
+                            </div>
+                            <div class="status-details">
+                                <h3>Order ${order.status}</h3>
+                                <p>Placed on ${new Date(order.created_at).toLocaleString('en-IN')}</p>
+                            </div>
+                        </div>
+                        <a href="#" class="track-order-btn">
+                            <i class="fas fa-map-marker-alt"></i> Track Order
+                        </a>
+                    </section>
+
+                    <section class="order-items-section">
+                        <h2 class="section-title">Items in this order</h2>
+                        ${itemsHtml}
+                    </section>
+
+                    <section class="order-details-section">
+                        <h2 class="section-title">Delivery Address</h2>
+                        ${addressHtml}
+
+                        <h2 class="section-title">Bill Details</h2>
+                        <div class="bill-card">
+                            ${billHtml}
+                        </div>
+                    </section>
+                `;
+            }
+            
+            // Helper function (agar token invalid ho)
+            function handleLogout() {
+                localStorage.removeItem('accessToken');
+                localStorage.removeItem('refreshToken');
+                checkAuth(); // Redirect karega
+            }
+
+            // --- 6. Page Load Par Shuru Karein ---
+            if (checkAuth()) {
+                orderId = getOrderId();
+                if (orderId) {
+                    fetchOrderDetails(orderId);
+                }
+            }
+
         });
     </script>
 
 </body>
-
 </html>

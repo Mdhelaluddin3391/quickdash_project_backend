@@ -5,174 +5,277 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Track Order - QuickDash</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+         integrity="sha256-p4NxAoJBhSOaWGMjbsCGXJCCJAXrgtiaTUt2SADmllc="
+         crossorigin=""/>
+    
+    <link rel="stylesheet" href="{% static 'css/index_style.css' %}">
     <link rel="stylesheet" href="{% static 'css/track_order_style.css' %}">
+    
+    <title>QuickDash - Track Order</title>
+
+    <style>
+        /* Map container ke liye height zaroori hai */
+        #map {
+            height: 400px;
+            width: 100%;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+    </style>
 </head>
 
 <body>
 
-    <header class="site-header">
-        <div class="container header-container">
-            <a href="profile.html" class="back-link">
-                <i class="fas fa-arrow-left"></i>
-                My Orders
-            </a>
-            <div class="logo">Track Order</div>
-        </div>
+    <header class="simple-header">
+        <a href="{% url 'web:profile' %}" class="back-button" id="back-to-order">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <h1 class="header-title" id="header-title">Track Order</h1>
+        <div class="header-placeholder"></div>
     </header>
 
-    <main class="container">
+    <main id="main-content-container">
 
-        <h1 class="order-id-title">Order #QD1209385</h1>
-
-        <div class="tracking-layout">
-
-            <div class="tracking-timeline-section">
-                <h2 class="section-title">Order Status</h2>
-
-                <div class="timeline">
-                    <div class="timeline-item completed">
-                        <div class="timeline-dot"></div>
-                        <div class="timeline-content">
-                            <h3>Order Placed</h3>
-                            <p>11 Nov 2025, 10:00 AM</p>
-                        </div>
-                    </div>
-                    <div class="timeline-item completed">
-                        <div class="timeline-dot"></div>
-                        <div class="timeline-content">
-                            <h3>Order Confirmed</h3>
-                            <p>11 Nov 2025, 10:05 AM</p>
-                        </div>
-                    </div>
-                    <div class="timeline-item active">
-                        <div class="timeline-dot"></div>
-                        <div class="timeline-content">
-                            <h3>Out for Delivery</h3>
-                            <p>Your delivery executive is on the way.</p>
-                            <span class="expected-time">Expected by 11:30 AM</span>
-                        </div>
-                    </div>
-                    <div class="timeline-item">
-                        <div class="timeline-dot"></div>
-                        <div class="timeline-content">
-                            <h3>Delivered</h3>
-                            <p>Successfully delivered to your address.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="map-container">
-                    <h2 class="section-title">Live Tracking</h2>
-                    <div id="map"></div>
-                </div>
-            </div>
-
-            <div class="order-details-card">
-                <h2 class="section-title">Delivery Details</h2>
-
-                <div class="delivery-executive">
-                    <img src="https://via.placeholder.com/50/4CAF50/FFFFFF?text=DE" alt="Delivery Executive">
-                    <div class="executive-info">
-                        <strong>Rahul (Delivery Executive)</strong>
-                        <p>Contact: +91 9000XXXXX</p>
-                    </div>
-                    <a href="#" class="call-btn" title="Call Executive"><i class="fas fa-phone"></i></a>
-                </div>
-
-                <div class="delivery-info-row">
-                    <i class="fas fa-clock"></i>
-                    <span><strong>15 mins</strong> expected delivery time.</span>
-                </div>
-                <div class="delivery-info-row">
-                    <i class="fas fa-map-marker-alt"></i>
-                    <span>Delivering to: Home (123, Sunrise Apartments)</span>
-                </div>
-
-                <div class="delivery-actions">
-                    <a href="profile.html" class="btn-secondary">View Order Summary</a>
-                </div>
-            </div>
-
+        <div class="status-message" id="loading-indicator">
+            <i class="fas fa-spinner fa-spin"></i> Loading order details...
         </div>
+        
+        <div id="map" style="display: none;"></div>
+
+        <div id="tracking-details-container">
+            </div>
 
     </main>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+         crossorigin=""></script>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // --- 1. Dummy Locations (Inhein API se fetch karein) ---
-            const storeLocation = { lat: 12.9352, lng: 77.6160, name: "Koramangala Hub" };
-            const customerLocation = { lat: 12.9280, lng: 77.6220, name: "Your Location" };
-            // Rider ki location WebSocket se aayegi
-            let riderLocation = { lat: 12.9310, lng: 77.6190 };
 
-            // --- 2. Map Initialization ---
-            const map = L.map('map').setView([storeLocation.lat, storeLocation.lng], 14);
+            // --- 1. Zaroori Elements ---
+            const mainContainer = document.getElementById('main-content-container');
+            const loader = document.getElementById('loading-indicator');
+            const headerTitle = document.getElementById('header-title');
+            const mapContainer = document.getElementById('map');
+            const trackingDetailsContainer = document.getElementById('tracking-details-container');
+            const backButton = document.getElementById('back-to-order');
 
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '© OpenStreetMap'
-            }).addTo(map);
+            let accessToken = '';
+            let orderId = '';
+            
+            // Map variables
+            let map;
+            let deliveryAgentMarker;
+            let homeMarker;
+            
+            // WebSocket variable
+            let trackingSocket;
 
-            // --- 3. Custom Icons ---
-            const storeIcon = L.icon({
-                iconUrl: 'https://cdn-icons-png.flaticon.com/512/3448/3448339.png',
-                iconSize: [40, 40],
-            });
-            const customerIcon = L.icon({
-                iconUrl: 'https://cdn-icons-png.flaticon.com/512/25/25694.png',
-                iconSize: [35, 35],
-            });
-            const riderIcon = L.icon({
-                iconUrl: 'https://cdn-icons-png.flaticon.com/512/3034/3034874.png',
-                iconSize: [38, 38],
-            });
+            // --- 2. Authentication Check ---
+            function checkAuth() {
+                accessToken = localStorage.getItem('accessToken');
+                if (!accessToken) {
+                    window.location.href = "{% url 'web:auth' %}?next=" + window.location.pathname;
+                    return false;
+                }
+                return true;
+            }
 
-            // --- 4. Add Markers ---
-            L.marker([storeLocation.lat, storeLocation.lng], { icon: storeIcon }).addTo(map).bindPopup(storeLocation.name);
-            L.marker([customerLocation.lat, customerLocation.lng], { icon: customerIcon }).addTo(map).bindPopup(customerLocation.name);
+            // --- 3. URL se Order ID nikalna ---
+            function getOrderId() {
+                try {
+                    const pathParts = window.location.pathname.split('/');
+                    const id = pathParts[3]; // [0]="", [1]="track", [2]="order", [3]="<id>"
+                    if (!id || isNaN(id)) {
+                        throw new Error("Invalid ID");
+                    }
+                    return id;
+                } catch (e) {
+                    console.error("ID nahi mil saki:", e);
+                    mainContainer.innerHTML = "<p class='status-message'>Error: Invalid Order URL.</p>";
+                    return null;
+                }
+            }
 
-            // Rider ka marker alag variable mein store karein taaki use move kar sakein
-            const riderMarker = L.marker([riderLocation.lat, riderLocation.lng], { icon: riderIcon }).addTo(map).bindPopup("Delivery Executive");
+            // --- 4. Main Function: Order Data Fetch Karna (HTTP) ---
+            async function fetchOrderDetails(id) {
+                try {
+                    const response = await fetch(`/api/orders/${id}/`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${accessToken}`
+                        }
+                    });
 
-            // --- 5. WebSocket Connection (Yeh aapke backend se connect hoga) ---
-            const orderId = document.querySelector('.order-id-title').innerText.replace('Order ', '');
-            // Aapko 'ws://' ya 'wss://' (production mein) use karna hoga
-            const socketProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const socket = new WebSocket(
-                `${socketProtocol}//${window.location.host}/ws/track/${orderId}/`
-            );
+                    if (!response.ok) throw new Error('Could not load order details.');
+                    
+                    const orderData = await response.json();
+                    
+                    // Data milne ke baad, render karein aur WebSocket connect karein
+                    renderStaticDetails(orderData);
+                    connectToWebSocket(id);
 
-            socket.onopen = function (e) {
-                console.log("WebSocket connection established!");
-            };
+                } catch (error) {
+                    console.error("Order fetch karne mein error:", error);
+                    mainContainer.innerHTML = `<p class="status-message">${error.message}</p>`;
+                } finally {
+                    loader.style.display = 'none'; // Loader chupayein
+                }
+            }
+            
+            // --- 5. Render Function: Static Details ---
+            function renderStaticDetails(order) {
+                headerTitle.innerText = `Track Order #${order.id}`;
+                backButton.href = `/order/${order.id}/`; // Back button ko sahi URL dein
 
-            socket.onmessage = function (e) {
-                const data = JSON.parse(e.data);
+                // Map ko display karein
+                mapContainer.style.display = 'block';
+                
+                // Address coordinates (Assumption: 'location' field hai)
+                // Default coordinates (e.g., city center) agar location na ho
+                const defaultCoords = [24.02, 92.17]; // Dharmanagar approx
+                const userLat = order.delivery_address.location ? order.delivery_address.location.latitude : defaultCoords[0];
+                const userLng = order.delivery_address.location ? order.delivery_address.location.longitude : defaultCoords[1];
 
-                // Aapke delivery/consumers.py ke 'rider.location.update' event ke hisaab se
-                if (data.type === 'RIDER_LOCATION') {
-                    const newCoords = data.payload; // e.g., { latitude: 12.9315, longitude: 77.6195 }
-                    console.log("New rider location received:", newCoords);
+                // Map initialize karein
+                map = L.map('map').setView([userLat, userLng], 15); // User location par center karein
 
-                    // Map par rider ki location update karein
-                    const newLatLng = [newCoords.latitude, newCoords.longitude];
-                    riderMarker.setLatLng(newLatLng);
+                // OpenStreetMap tiles
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(map);
 
-                    // (Optional) Map ko rider ki nayi location par center karein
-                    // map.panTo(newLatLng);
+                // Home icon
+                const homeIcon = L.icon({
+                    iconUrl: 'https://cdn-icons-png.flaticon.com/512/25/25694.png',
+                    iconSize: [32, 32],
+                });
+                homeMarker = L.marker([userLat, userLng], {icon: homeIcon}).addTo(map)
+                    .bindPopup('Your Location')
+                    .openPopup();
+
+                // Delivery agent ka icon (shuru mein null)
+                const agentIcon = L.icon({
+                    iconUrl: 'https://cdn-icons-png.flaticon.com/512/4470/4470311.png',
+                    iconSize: [32, 32],
+                });
+                deliveryAgentMarker = L.marker([userLat, userLng], {icon: agentIcon}).addTo(map); // Shuru mein home par rakhein
+                deliveryAgentMarker.setOpacity(0); // Shuru mein chupayein
+
+                // Baaki details render karein
+                trackingDetailsContainer.innerHTML = `
+                    <div class="tracking-status-card">
+                        <div class="status-icon ${order.status.toLowerCase()}">
+                            <i class="fas fa-box-open"></i>
+                        </div>
+                        <div class="status-details">
+                            <h3 id="order-status-text">${order.status}</h3>
+                            <p id="eta-text">Estimating time...</p>
+                        </div>
+                    </div>
+                    <div class="delivery-address-card">
+                        <h3>Delivery Address</h3>
+                        <p>${order.delivery_address.full_address}</p>
+                    </div>
+                    <div class="delivery-agent-card" id="agent-card" style="display: none;">
+                        <i class="fas fa-user-circle agent-avatar"></i>
+                        <div class="agent-details">
+                            <h3 id="agent-name"></h3>
+                            <p>is on the way</p>
+                        </div>
+                        <a href="" id="agent-phone" class="call-btn"><i class="fas fa-phone"></i></a>
+                    </div>
+                `;
+            }
+
+            // --- 6. WebSocket Connection ---
+            function connectToWebSocket(id) {
+                // Determine protocol (ws or wss)
+                const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+                const wsURL = `${wsProtocol}${window.location.host}/ws/track/order/${id}/?token=${accessToken}`;
+
+                trackingSocket = new WebSocket(wsURL);
+
+                trackingSocket.onopen = (e) => {
+                    console.log("Tracking WebSocket connected!");
+                };
+
+                trackingSocket.onmessage = (e) => {
+                    const data = JSON.parse(e.data);
+                    console.log("Location update:", data);
+                    
+                    // Naye location data se UI update karein
+                    updateTrackingInfo(data);
+                };
+
+                trackingSocket.onclose = (e) => {
+                    console.error("Tracking WebSocket disconnected:", e);
+                    // alert('Tracking disconnected. Please refresh.');
+                };
+
+                trackingSocket.onerror = (e) => {
+                    console.error("WebSocket error:", e);
+                };
+            }
+            
+            // --- 7. Update UI (WebSocket se data milne par) ---
+            function updateTrackingInfo(data) {
+                // Kadam A: Map par marker update karein
+                if (data.location && deliveryAgentMarker) {
+                    const newCoords = [data.location.latitude, data.location.longitude];
+                    deliveryAgentMarker.setLatLng(newCoords);
+                    deliveryAgentMarker.setOpacity(1); // Marker ko dikhayein
+                    
+                    // Map ko dono markers (agent aur home) dikhane ke liye adjust karein
+                    map.fitBounds([
+                        homeMarker.getLatLng(),
+                        deliveryAgentMarker.getLatLng()
+                    ], { padding: [50, 50] }); // Thoda padding
+                }
+                
+                // Kadam B: ETA/Status update karein
+                if (data.eta_minutes) {
+                    document.getElementById('eta-text').innerText = `Arriving in ${data.eta_minutes} minutes`;
+                }
+                if (data.status) {
+                     document.getElementById('order-status-text').innerText = data.status;
+                }
+
+                // Kadam C: Agent details update karein
+                if (data.agent_details) {
+                    const agentCard = document.getElementById('agent-card');
+                    document.getElementById('agent-name').innerText = data.agent_details.name;
+                    document.getElementById('agent-phone').href = `tel:${data.agent_details.phone}`;
+                    agentCard.style.display = 'flex';
+                }
+            }
+
+            // --- 8. Page Load Par Shuru Karein ---
+            if (checkAuth()) {
+                orderId = getOrderId();
+                if (orderId) {
+                    fetchOrderDetails(orderId);
+                }
+            }
+            
+            // Page band hone par WebSocket close karein
+            window.onbeforeunload = () => {
+                if (trackingSocket) {
+                    trackingSocket.close();
                 }
             };
 
-            socket.onclose = function (e) {
-                console.error("WebSocket connection closed unexpectedly.");
-            };
         });
     </script>
-</body>
 
+</body>
 </html>
