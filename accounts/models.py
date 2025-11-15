@@ -12,18 +12,6 @@ class User(AbstractUser):
     """
     Custom User Model.
     """
-    class UserType(models.TextChoices):
-        CUSTOMER = 'CUSTOMER', 'Customer'
-        STAFF = 'STAFF', 'Staff'
-        RIDER = 'RIDER', 'Rider'
-
-    user_type = models.CharField(
-        max_length=20,
-        choices=UserType.choices,
-        default=UserType.CUSTOMER,
-        db_index=True
-    )
-
     email = models.EmailField(blank=True, null=True)
     
     phone_number = models.CharField(
@@ -77,7 +65,7 @@ class StoreStaffProfile(models.Model):
     Yeh profile user ko 'Store Staff' banati hai.
     Ise Admin Panel se manually add kiya jayega.
     """
-    class StaffRole(models.TextChoices):
+    class DesignationChoices(models.TextChoices):
         HR = 'HR', 'HR'
         MANAGER = 'MANAGER', 'Store Manager'
         ShiftIncherg = 'ShiftIncherg', 'Shift Incherg'
@@ -85,11 +73,22 @@ class StoreStaffProfile(models.Model):
         
         # Aap aur bhi roles add kar sakte hain
     
-    role = models.CharField(
+    designation = models.CharField(
+        max_length=50,
+        choices=DesignationChoices.choices,
+        null=True,
+        blank=True
+    )
+
+    class ApprovalStatusChoices(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        APPROVED = 'approved', 'Approved'
+        REJECTED = 'rejected', 'Rejected'
+
+    approval_status = models.CharField(
         max_length=20,
-        choices=StaffRole.choices,
-        null=True, blank=True,
-        help_text="Employee ka designation"
+        choices=ApprovalStatusChoices.choices,
+        default=ApprovalStatusChoices.PENDING
     )
 
 

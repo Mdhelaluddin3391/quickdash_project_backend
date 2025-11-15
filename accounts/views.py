@@ -27,7 +27,8 @@ from .serializers import (
     FCMTokenSerializer,
     StaffPasswordResetRequestSerializer,
     StaffPasswordResetConfirmSerializer,
-    StaffGoogleLoginSerializer
+    StaffGoogleLoginSerializer,
+    StaffOTPVerifySerializer
 )
 
 # Permission Imports

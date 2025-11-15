@@ -478,6 +478,16 @@ class RiderApplication(TimestampedModel):
         related_name='rider_application',
         help_text="Kaun sa user apply kar raha hai"
     )
+
+    full_name = models.CharField(max_length=100)
+    phone_number = models.CharField(
+        max_length=15, 
+        unique=True,
+        help_text="Rider ka primary phone number (e.g., +919876543210)"
+    )
+    email = models.EmailField(unique=True, null=True, blank=True)
+    city = models.CharField(max_length=50)
+    full_address = models.TextField()
     
     status = models.CharField(
         max_length=20,
