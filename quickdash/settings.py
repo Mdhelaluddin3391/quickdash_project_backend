@@ -79,6 +79,7 @@ INSTALLED_APPS = [
     'wms',
     'support',
     'dashboard',
+
 ]
 
 MIDDLEWARE = [
